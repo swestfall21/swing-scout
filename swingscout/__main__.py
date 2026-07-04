@@ -96,6 +96,13 @@ def cmd_research(args) -> int:
     return 0
 
 
+def cmd_web(args) -> int:
+    from . import webapp
+
+    webapp.serve(port=args.port)
+    return 0
+
+
 def main() -> int:
     load_env()
     parser = argparse.ArgumentParser(
@@ -121,6 +128,10 @@ def main() -> int:
     p_res = sub.add_parser("research", help="Claude deep research (whole watchlist, or named symbols)")
     p_res.add_argument("symbols", nargs="*")
     p_res.set_defaults(func=cmd_research)
+
+    p_web = sub.add_parser("web", help="local chart dashboard at http://localhost:8137")
+    p_web.add_argument("--port", type=int, default=8137)
+    p_web.set_defaults(func=cmd_web)
 
     args = parser.parse_args()
     return args.func(args)

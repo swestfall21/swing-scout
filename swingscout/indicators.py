@@ -64,6 +64,43 @@ def swing_levels(bars: list[dict], lookback: int = 120, wing: int = 3) -> tuple[
     return highs, lows
 
 
+def key_levels(bars: list[dict], max_each: int = 3) -> dict:
+    """Support/resistance levels for charting: swing levels below/above the
+    current price, deduped so levels closer than half an ATR merge (keeping
+    the one touched most recently)."""
+    price = bars[-1]["close"]
+    atr = atr14(bars) or price * 0.02
+    highs, lows = swing_levels(bars)
+
+    def dedupe(levels: list[float]) -> list[float]:
+        out: list[float] = []
+        for lvl in levels:  # iterate most-recent-last; later touches win
+            out = [k for k in out if abs(k - lvl) > atr / 2]
+            out.append(lvl)
+        return out
+
+    supports = sorted(dedupe([l for l in lows if l < price]), reverse=True)[:max_each]
+    resistances = sorted(dedupe([h for h in highs if h > price]))[:max_each]
+    return {
+        "support": [round(s, 2) for s in supports],
+        "resistance": [round(r, 2) for r in resistances],
+    }
+
+
+def sma_series(bars: list[dict], n: int) -> list[dict]:
+    """Rolling SMA aligned to bar dates, for chart overlays."""
+    closes = [b["close"] for b in bars]
+    out = []
+    running = 0.0
+    for i, b in enumerate(bars):
+        running += closes[i]
+        if i >= n:
+            running -= closes[i - n]
+        if i >= n - 1:
+            out.append({"time": b["date"], "value": round(running / n, 4)})
+    return out
+
+
 def snapshot(symbol: str, bars: list[dict]) -> dict:
     closes = [b["close"] for b in bars]
     volumes = [b["volume"] for b in bars]

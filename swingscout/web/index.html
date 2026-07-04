@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Swing Scout</title>
+<style>
+  :root {
+    --page: #f9f9f7; --surface: #fcfcfb;
+    --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --border: rgba(11,11,11,0.10);
+    --up: #0ca30c; --down: #d03b3b;
+    --sma20: #2a78d6; --sma50: #eda100; --sma200: #4a3aa7;
+    --support: #1baf7a; --resist: #eb6834;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page: #0d0d0d; --surface: #1a1a19;
+      --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+      --sma20: #3987e5; --sma50: #c98500; --sma200: #9085e9;
+      --support: #199e70; --resist: #d95926;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--ink);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: grid; grid-template-columns: 224px 1fr; height: 100vh;
+  }
+  /* ---- sidebar ---- */
+  aside {
+    background: var(--surface); border-right: 1px solid var(--border);
+    padding: 16px 12px; display: flex; flex-direction: column; gap: 12px;
+  }
+  aside h1 { font-size: 15px; margin: 0 4px; letter-spacing: 0.01em; }
+  aside h1 small { color: var(--muted); font-weight: 400; display: block; font-size: 11px; }
+  #addForm { display: flex; gap: 6px; }
+  #addForm input {
+    flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--page); color: var(--ink);
+    font: inherit; text-transform: uppercase;
+  }
+  #addForm button {
+    padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--ink); cursor: pointer; font: inherit;
+  }
+  #err { color: var(--down); font-size: 12px; min-height: 16px; margin: 0 4px; }
+  #symbols { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
+  #symbols li {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 7px 10px; border-radius: 6px; cursor: pointer; font-weight: 600;
+  }
+  #symbols li:hover { background: var(--page); }
+  #symbols li.active { background: var(--page); box-shadow: inset 2px 0 0 var(--sma20); }
+  #symbols li .rm {
+    color: var(--muted); font-weight: 400; padding: 0 4px; border-radius: 4px;
+    visibility: hidden;
+  }
+  #symbols li:hover .rm { visibility: visible; }
+  #symbols li .rm:hover { color: var(--down); }
+  /* ---- main ---- */
+  main { display: flex; flex-direction: column; padding: 16px 20px; gap: 12px; min-width: 0; }
+  header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  header .sym { font-size: 22px; font-weight: 700; }
+  header .px { font-size: 22px; font-variant-numeric: tabular-nums; }
+  header .chg { font-size: 14px; font-weight: 600; }
+  header .chg.up { color: var(--up); } header .chg.down { color: var(--down); }
+  header .asof { color: var(--muted); font-size: 12px; margin-left: auto; }
+  #tiles { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tile {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 12px; min-width: 84px;
+  }
+  .tile .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .tile .v { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  #chartCard {
+    flex: 1; min-height: 0; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column;
+  }
+  #chartBar { display: flex; align-items: center; gap: 14px; padding: 2px 4px 8px; flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 12px; }
+  .chip i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+  #ranges { margin-left: auto; display: flex; gap: 4px; }
+  #ranges button {
+    border: 1px solid var(--border); background: transparent; color: var(--ink-2);
+    border-radius: 6px; padding: 3px 10px; cursor: pointer; font: inherit; font-size: 12px;
+  }
+  #ranges button.active { background: var(--page); color: var(--ink); font-weight: 600; }
+  #chart { flex: 1; min-height: 0; position: relative; }
+  #ohlc {
+    position: absolute; top: 6px; left: 8px; z-index: 5; font-size: 12px;
+    color: var(--ink-2); font-variant-numeric: tabular-nums; pointer-events: none;
+    background: color-mix(in srgb, var(--surface) 82%, transparent);
+    padding: 2px 6px; border-radius: 5px;
+  }
+  #empty { color: var(--muted); display: grid; place-items: center; height: 100%; }
+</style>
+</head>
+<body>
+<aside>
+  <h1>Swing Scout <small>local research dashboard</small></h1>
+  <form id="addForm">
+    <input id="addInput" placeholder="Add symbol…" maxlength="10" autocomplete="off">
+    <button type="submit">Add</button>
+  </form>
+  <div id="err"></div>
+  <ul id="symbols"></ul>
+</aside>
+<main>
+  <header>
+    <span class="sym" id="hSym">—</span>
+    <span class="px" id="hPx"></span>
+    <span class="chg" id="hChg"></span>
+    <span class="asof" id="hAsOf"></span>
+  </header>
+  <div id="tiles"></div>
+  <div id="chartCard">
+    <div id="chartBar">
+      <span class="chip"><i style="background:var(--sma20)"></i>SMA 20</span>
+      <span class="chip"><i style="background:var(--sma50)"></i>SMA 50</span>
+      <span class="chip"><i style="background:var(--sma200)"></i>SMA 200</span>
+      <span class="chip"><i style="background:var(--support)"></i>Support</span>
+      <span class="chip"><i style="background:var(--resist)"></i>Resistance</span>
+      <div id="ranges">
+        <button data-m="3">3M</button><button data-m="6" class="active">6M</button>
+        <button data-m="12">1Y</button><button data-m="24">2Y</button>
+      </div>
+    </div>
+    <div id="chart"><div id="empty">Add a symbol to get started</div><div id="ohlc" hidden></div></div>
+  </div>
+</main>
+<script src="/lightweight-charts.js"></script>
+<script>
+const LWC = LightweightCharts;
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const $ = (id) => document.getElementById(id);
+
+let chart = null, candleSeries = null, volSeries = null, smaSeries = {};
+let priceLines = [];
+let current = null, lastData = null, months = 6;
+
+function chartTheme() {
+  return {
+    layout: {
+      background: { color: css('--surface') }, textColor: css('--muted'),
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', fontSize: 11,
+      attributionLogo: false,
+    },
+    grid: {
+      vertLines: { color: css('--grid') },
+      horzLines: { color: css('--grid') },
+    },
+    rightPriceScale: { borderColor: css('--grid') },
+    timeScale: { borderColor: css('--grid'), rightOffset: 3 },
+    crosshair: { mode: LWC.CrosshairMode.Normal },
+  };
+}
+
+function ensureChart() {
+  if (chart) return;
+  $('empty').remove();
+  chart = LWC.createChart($('chart'), chartTheme());
+  candleSeries = chart.addSeries(LWC.CandlestickSeries, {
+    upColor: css('--up'), downColor: css('--down'), borderVisible: false,
+    wickUpColor: css('--up'), wickDownColor: css('--down'),
+  });
+  volSeries = chart.addSeries(LWC.HistogramSeries, {
+    priceFormat: { type: 'volume' }, priceScaleId: 'vol',
+    lastValueVisible: false, priceLineVisible: false,
+  });
+  chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 }, visible: false });
+  for (const [n, v] of [[20, '--sma20'], [50, '--sma50'], [200, '--sma200']]) {
+    smaSeries[n] = chart.addSeries(LWC.LineSeries, {
+      color: css(v), lineWidth: 2, priceLineVisible: false, lastValueVisible: false,
+      crosshairMarkerVisible: false,
+    });
+  }
+  new ResizeObserver(() => chart.applyOptions({})).observe($('chart'));
+  chart.subscribeCrosshairMove(onCrosshair);
+}
+
+function onCrosshair(param) {
+  const el = $('ohlc');
+  const bar = param?.seriesData?.get(candleSeries);
+  if (!bar) { el.hidden = true; return; }
+  const chg = ((bar.close / bar.open - 1) * 100).toFixed(2);
+  el.hidden = false;
+  el.textContent = `${param.time}  O ${bar.open.toFixed(2)}  H ${bar.high.toFixed(2)}` +
+                   `  L ${bar.low.toFixed(2)}  C ${bar.close.toFixed(2)}  (${chg}%)`;
+}
+
+function applyRange() {
+  if (!chart || !lastData) return;
+  const bars = lastData.bars;
+  const last = bars[bars.length - 1].time;
+  const from = new Date(last); from.setMonth(from.getMonth() - months);
+  const fromStr = from.toISOString().slice(0, 10);
+  const first = bars.find(b => b.time >= fromStr) || bars[0];
+  chart.timeScale().setVisibleRange({ from: first.time, to: last });
+}
+
+function render(data) {
+  lastData = data;
+  ensureChart();
+  const up = css('--up'), down = css('--down');
+  candleSeries.setData(data.bars.map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })));
+  volSeries.setData(data.bars.map(b => ({
+    time: b.time, value: b.volume,
+    color: (b.close >= b.open ? up : down) + '55',
+  })));
+  for (const n of [20, 50, 200]) smaSeries[n].setData(data.sma[String(n)]);
+
+  priceLines.forEach(pl => candleSeries.removePriceLine(pl));
+  priceLines = [];
+  const mkLine = (price, color, title) => priceLines.push(candleSeries.createPriceLine({
+    price, color, lineWidth: 1, lineStyle: LWC.LineStyle.Dashed,
+    axisLabelVisible: true, title,
+  }));
+  data.levels.support.forEach(p => mkLine(p, css('--support'), 'S'));
+  data.levels.resistance.forEach(p => mkLine(p, css('--resist'), 'R'));
+
+  const s = data.snapshot;
+  $('hSym').textContent = data.symbol;
+  $('hPx').textContent = s.price.toFixed(2);
+  const chg = s.change_5d_pct;
+  $('hChg').textContent = chg == null ? '' : `${chg > 0 ? '▲' : '▼'} ${Math.abs(chg).toFixed(1)}% 5d`;
+  $('hChg').className = 'chg ' + (chg >= 0 ? 'up' : 'down');
+  $('hAsOf').textContent = `as of ${s.date} close · local data, refreshed daily`;
+
+  const tiles = [
+    ['Trend', s.trend], ['RSI 14', s.rsi14], ['ATR', s.atr_pct == null ? null : s.atr_pct + '%'],
+    ['Off 52w high', s.off_year_high_pct == null ? null : s.off_year_high_pct + '%'],
+    ['Support', s.support], ['Resistance', s.resistance],
+    ['Vol 20/60', s.volume_ratio_20d_60d],
+  ];
+  $('tiles').innerHTML = tiles.map(([k, v]) =>
+    `<div class="tile"><div class="k">${k}</div><div class="v">${v ?? '–'}</div></div>`).join('');
+
+  applyRange();
+}
+
+async function loadSymbol(sym) {
+  current = sym;
+  document.querySelectorAll('#symbols li').forEach(li =>
+    li.classList.toggle('active', li.dataset.sym === sym));
+  $('hSym').textContent = sym; $('hPx').textContent = '…';
+  const resp = await fetch(`/api/chart/${sym}`);
+  const data = await resp.json();
+  if (data.error) { $('err').textContent = data.error; return; }
+  $('err').textContent = '';
+  render(data);
+}
+
+function paintList(symbols) {
+  const ul = $('symbols');
+  ul.innerHTML = '';
+  for (const sym of symbols) {
+    const li = document.createElement('li');
+    li.dataset.sym = sym;
+    li.innerHTML = `<span>${sym}</span><span class="rm" title="remove">✕</span>`;
+    li.querySelector('.rm').onclick = (e) => { e.stopPropagation(); mutate('remove', sym); };
+    li.onclick = () => loadSymbol(sym);
+    if (sym === current) li.classList.add('active');
+    ul.appendChild(li);
+  }
+}
+
+async function mutate(action, symbol) {
+  $('err').textContent = '';
+  const resp = await fetch('/api/watchlist', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, symbol }),
+  });
+  const result = await resp.json();
+  if (result.error) { $('err').textContent = result.error; return null; }
+  paintList(result);
+  return result;
+}
+
+$('addForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const sym = $('addInput').value.trim().toUpperCase();
+  if (!sym) return;
+  const list = await mutate('add', sym);
+  $('addInput').value = '';
+  if (list && list.includes(sym)) loadSymbol(sym);
+};
+
+$('ranges').onclick = (e) => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  months = Number(btn.dataset.m);
+  document.querySelectorAll('#ranges button').forEach(b => b.classList.toggle('active', b === btn));
+  applyRange();
+};
+
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (lastData) { chart.applyOptions(chartTheme()); render(lastData); }
+});
+
+(async function init() {
+  const symbols = await (await fetch('/api/watchlist')).json();
+  paintList(symbols);
+  if (symbols.length) loadSymbol(symbols[0]);
+})();
+</script>
+</body>
+</html>

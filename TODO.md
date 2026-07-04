@@ -25,3 +25,10 @@ no broker connection, no order execution. Decided 2026-07-04.
 Notes: PDT rules make sub-$25k accounts swing-trade naturally (days–weeks
 holds), which is exactly the cadence this tool targets. If its calls look
 good after months of use, a paper-trading execution arm can be a v2.
+
+- [x] 9. Web dashboard — `./scout web` serves http://localhost:8137:
+      candlestick chart (lightweight-charts v5, vendored) with SMA 20/50/200
+      overlays, volume, dashed support/resistance level lines, stat tiles,
+      add/remove symbols from the sidebar (validated against real data),
+      3M/6M/1Y/2Y ranges, light + dark ✓ 2026-07-04, verified via headless
+      screenshots in both modes, no console errors

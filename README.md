@@ -25,6 +25,7 @@ deep-research command needs is an Anthropic API key:
     ./scout list
 
     ./scout scan                   # free, instant: indicator screen table
+    ./scout web                    # local chart dashboard at http://localhost:8137
     ./scout research               # Claude deep research, whole watchlist
     ./scout research NVDA          # ... or just the symbols you name
 
