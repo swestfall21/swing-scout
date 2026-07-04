@@ -57,8 +57,10 @@ def fetch_daily(symbol: str, range_: str = "1y") -> list[dict]:
             "low": round(l, 4), "close": round(c, 4),
             "volume": int(v or 0),
         })
-    if len(bars) < 60:
-        raise DataError(f"{symbol}: only {len(bars)} bars of history — not enough to analyze")
+    # Recent IPOs are allowed with a short history — indicators that need a
+    # longer window (SMA50/200, RSI, ATR) degrade to "-" until it accrues.
+    if len(bars) < 10:
+        raise DataError(f"{symbol}: only {len(bars)} bars of history — too new to chart")
 
     _cache_write(symbol, range_, bars)
     return bars
