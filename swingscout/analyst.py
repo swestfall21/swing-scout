@@ -66,7 +66,7 @@ def require_api_key() -> None:
         )
 
 
-def _build_user_message(snap: dict, bars: list[dict]) -> str:
+def _build_user_message(snap: dict, bars: list[dict], pos: dict | None = None) -> str:
     recent = bars[-15:]
     lines = ["date        open     high     low      close    volume"]
     for b in recent:
@@ -74,11 +74,24 @@ def _build_user_message(snap: dict, bars: list[dict]) -> str:
             f"{b['date']}  {b['open']:<8.2f} {b['high']:<8.2f} "
             f"{b['low']:<8.2f} {b['close']:<8.2f} {b['volume']}"
         )
+    position_block = ""
+    if pos and pos["qty"]:
+        position_block = (
+            f"\n\nIMPORTANT — the trader ALREADY HOLDS {pos['qty']:g} shares at "
+            f"average cost {pos['avg_cost']:.2f} (opened {pos['opened']}, "
+            f"unrealized {pos['unrealized_pct']:+.1f}%, realized to date "
+            f"{pos['realized_pnl']:+.2f}). Frame the note around managing this "
+            "holding — hold, add, trim, or exit, with concrete levels — not a "
+            "fresh entry. Map the JSON stance to the go-forward action: "
+            "long_setup = add/hold with conviction, watch = hold with a defined "
+            "stop, avoid = exit or reduce."
+        )
     return (
         f"Research {snap['symbol']} for a swing trade as of {snap['date']}.\n\n"
         f"Indicator snapshot (computed from real daily data):\n"
         f"{json.dumps(snap, indent=2)}\n\n"
-        f"Last 15 trading days:\n" + "\n".join(lines) + "\n\n"
+        f"Last 15 trading days:\n" + "\n".join(lines)
+        + position_block + "\n\n"
         "Search the web for current news, upcoming earnings, and catalysts "
         "before forming the thesis."
     )
@@ -98,8 +111,10 @@ def research_symbols(symbols: list[str]) -> list[dict]:
     import anthropic
 
     from . import data, indicators
+    from . import trades as trades_mod
 
     client = anthropic.Anthropic()
+    trade_log = trades_mod.load()
     results = []
     for sym in symbols:
         print(f"Researching {sym} ...", flush=True)
@@ -109,6 +124,10 @@ def research_symbols(symbols: list[str]) -> list[dict]:
             print(f"  ! {e}", file=sys.stderr)
             continue
         snap = indicators.snapshot(sym, bars)
+        tlog = [t for t in trade_log if t["symbol"] == sym]
+        pos = (trades_mod.enrich(trades_mod.position(sym, tlog),
+                                 bars[-1]["close"], bars[-1]["date"])
+               if tlog else None)
         try:
             with client.messages.stream(
                 model=MODEL,
@@ -120,7 +139,7 @@ def research_symbols(symbols: list[str]) -> list[dict]:
                     "name": "web_search",
                     "max_uses": 6,
                 }],
-                messages=[{"role": "user", "content": _build_user_message(snap, bars)}],
+                messages=[{"role": "user", "content": _build_user_message(snap, bars, pos)}],
             ) as stream:
                 message = stream.get_final_message()
         except anthropic.APIError as e:

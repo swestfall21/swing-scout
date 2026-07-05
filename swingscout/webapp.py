@@ -4,14 +4,17 @@ GET  /                      the dashboard page
 GET  /lightweight-charts.js vendored chart library
 GET  /api/watchlist         ["NVDA", ...]
 POST /api/watchlist         {"action": "add"|"remove", "symbol": "..."}
-GET  /api/chart/<SYMBOL>    {bars, snapshot, levels, sma: {20,50,200}}
+POST /api/trades            {"symbol", "side", "qty", "price", "date"?, "note"?}
+GET  /api/chart/<SYMBOL>    {bars, snapshot, levels, sma, setups, position, trades, ...}
+GET  /api/account           {cash, positions_value, account_value}
+POST /api/cash              {"amount": +deposit/-withdrawal, "date"?, "note"?}
 """
 
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import data, indicators
+from . import data, indicators, trades
 from . import watchlist as wl
 
 WEB_DIR = Path(__file__).parent / "web"
@@ -41,21 +44,35 @@ class Handler(BaseHTTPRequestHandler):
                        "application/javascript")
         elif path == "/api/watchlist":
             self._json(wl.load())
+        elif path == "/api/account":
+            self._json(_account_summary())
         elif path.startswith("/api/chart/"):
             self._chart(path.removeprefix("/api/chart/"))
         else:
             self._json({"error": "not found"}, 404)
 
     def do_POST(self):
-        if self.path.split("?")[0] != "/api/watchlist":
-            self._json({"error": "not found"}, 404)
-            return
+        path = self.path.split("?")[0]
         length = int(self.headers.get("Content-Length", 0))
         try:
             body = json.loads(self.rfile.read(length) or b"{}")
+        except json.JSONDecodeError as e:
+            self._json({"error": str(e)}, 400)
+            return
+        if path == "/api/watchlist":
+            self._watchlist_post(body)
+        elif path == "/api/trades":
+            self._trades_post(body)
+        elif path == "/api/cash":
+            self._cash_post(body)
+        else:
+            self._json({"error": "not found"}, 404)
+
+    def _watchlist_post(self, body: dict):
+        try:
             symbol = wl.normalize(body["symbol"])
             action = body["action"]
-        except (json.JSONDecodeError, KeyError, ValueError) as e:
+        except (KeyError, ValueError) as e:
             self._json({"error": str(e)}, 400)
             return
         if action == "add":
@@ -73,6 +90,35 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._json(wl.load())
 
+    def _trades_post(self, body: dict):
+        try:
+            trade = trades.record(
+                body["symbol"], body["side"],
+                float(body["qty"]), float(body["price"]),
+                date=body.get("date") or None,
+                note=(body.get("note") or "").strip(),
+            )
+        except KeyError as e:
+            self._json({"error": f"missing field {e}"}, 400)
+            return
+        except (trades.TradeError, ValueError, TypeError) as e:
+            self._json({"error": str(e)}, 400)
+            return
+        self._json({"ok": True, "trade": trade})
+
+    def _cash_post(self, body: dict):
+        try:
+            entry = trades.record_cash(
+                float(body["amount"]), date=body.get("date") or None,
+                note=(body.get("note") or "").strip())
+        except KeyError as e:
+            self._json({"error": f"missing field {e}"}, 400)
+            return
+        except (trades.TradeError, ValueError, TypeError) as e:
+            self._json({"error": str(e)}, 400)
+            return
+        self._json({"ok": True, "entry": entry, "account": _account_summary()})
+
     def _chart(self, raw_symbol: str):
         try:
             symbol = wl.normalize(raw_symbol)
@@ -85,14 +131,71 @@ class Handler(BaseHTTPRequestHandler):
         except data.DataError as e:
             self._json({"error": str(e)}, 502)
             return
+        snap = indicators.snapshot(symbol, bars)
+        levels = indicators.key_levels(bars)
+        setup_list = indicators.setups(snap, levels, bars)
+        tlog = [t for t in trades.load() if t["symbol"] == symbol]
+        pos = (trades.enrich(trades.position(symbol, tlog),
+                             bars[-1]["close"], bars[-1]["date"])
+               if tlog else None)
+        plan = indicators.position_plan(snap, levels, pos)
+        entry = None if plan else indicators.entry_read(snap, levels, setup_list)
+        if entry and entry["stance"] == "setup":
+            _add_funding_context(entry, snap["price"])
         self._json({
             "symbol": symbol,
             "bars": [{"time": b["date"], **{k: b[k] for k in
                       ("open", "high", "low", "close", "volume")}} for b in bars],
-            "snapshot": indicators.snapshot(symbol, bars),
-            "levels": indicators.key_levels(bars),
+            "snapshot": snap,
+            "levels": levels,
             "sma": {str(n): indicators.sma_series(bars, n) for n in (20, 50, 200)},
+            "setups": setup_list,
+            "position": pos,
+            "trades": tlog,
+            "plan": plan,
+            "entry": entry,
+            "account": _account_summary(),
         })
+
+
+def _held_positions() -> list[dict]:
+    """Open positions enriched with last cached price; skips fetch failures."""
+    out = []
+    for p in trades.portfolio():
+        if not p["qty"]:
+            continue
+        try:
+            bars = data.fetch_daily(p["symbol"])
+        except data.DataError:
+            continue
+        out.append(trades.enrich(p, bars[-1]["close"], bars[-1]["date"]))
+    return out
+
+
+def _account_summary() -> dict:
+    cash = trades.cash_balance()
+    mv = sum(p["market_value"] for p in _held_positions())
+    return {"cash": round(cash, 2), "positions_value": round(mv, 2),
+            "account_value": round(cash + mv, 2)}
+
+
+def _add_funding_context(entry: dict, price: float) -> None:
+    """Attach cash/affordability to a SETUP entry read; when cash can't buy
+    a single share, point at the best winner as the capital-recycling trim
+    (sell strength at structure, don't deposit to chase)."""
+    cash = trades.cash_balance()
+    entry["cash"] = round(cash, 2)
+    entry["affordable_shares"] = int(cash // price) if price else 0
+    if entry["affordable_shares"] >= 1:
+        return
+    winners = [p for p in _held_positions() if (p["unrealized_pct"] or 0) >= 10]
+    if winners:
+        w = max(winners, key=lambda p: p["unrealized_pct"])
+        entry["funding_hint"] = (
+            f"Cash (${cash:,.2f}) doesn't cover a single share. Rather than "
+            f"depositing to chase, the capital-recycling move is trimming "
+            f"{w['symbol']} ({w['unrealized_pct']:+.1f}% winner) — ideally "
+            "into its trim zone, not at market.")
 
 
 def serve(port: int = 8137) -> None:

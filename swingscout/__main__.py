@@ -73,6 +73,116 @@ def cmd_scan(_args) -> int:
     return 0
 
 
+def _cmd_trade(args, side: str) -> int:
+    from . import trades
+
+    try:
+        t = trades.record(args.symbol, side, args.qty, args.price,
+                          date=args.date, note=args.note or "")
+    except (trades.TradeError, ValueError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    pos = trades.position(t["symbol"])
+    print(f"Logged: {t['date']} {side} {t['qty']:g} {t['symbol']} @ {t['price']:.2f}")
+    if pos["qty"]:
+        print(f"Position: {pos['qty']:g} @ avg {pos['avg_cost']:.2f}"
+              f"  (realized so far {pos['realized_pnl']:+.2f})")
+    else:
+        print(f"Position closed. Realized P&L: {pos['realized_pnl']:+.2f}")
+    return 0
+
+
+def cmd_buy(args) -> int:
+    return _cmd_trade(args, "buy")
+
+
+def cmd_sell(args) -> int:
+    return _cmd_trade(args, "sell")
+
+
+def _cmd_cash(args, sign: int) -> int:
+    from . import trades
+
+    try:
+        e = trades.record_cash(sign * abs(args.amount), date=args.date,
+                               note=args.note or "")
+    except trades.TradeError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    verb = "Deposited" if e["amount"] > 0 else "Withdrew"
+    print(f"{verb} {abs(e['amount']):.2f} on {e['date']}. "
+          f"Cash on hand: {trades.cash_balance():.2f}")
+    return 0
+
+
+def cmd_deposit(args) -> int:
+    return _cmd_cash(args, +1)
+
+
+def cmd_withdraw(args) -> int:
+    return _cmd_cash(args, -1)
+
+
+def cmd_trades(args) -> int:
+    from . import trades, watchlist
+
+    log = trades.load()
+    if args.symbol:
+        sym = watchlist.normalize(args.symbol)
+        log = [t for t in log if t["symbol"] == sym]
+    if not log:
+        print("No trades logged yet. Log one with:  ./scout buy VRT 10 250.00 2026-05-12")
+        return 0
+    for t in log:
+        note = f"  # {t['note']}" if t.get("note") else ""
+        print(f"{t['date']}  {t['side']:<4} {t['qty']:>8g}  {t['symbol']:<6} "
+              f"@ {t['price']:>9.2f}{note}")
+    return 0
+
+
+def cmd_pnl(_args) -> int:
+    from . import data, trades
+
+    book = trades.portfolio()
+    if not book:
+        print("No trades logged yet. Log one with:  ./scout buy VRT 10 250.00 2026-05-12")
+        return 0
+    rows, tot_real, tot_unreal, tot_mv = [], 0.0, 0.0, 0.0
+    for pos in book:
+        tot_real += pos["realized_pnl"]
+        if not pos["qty"]:
+            rows.append([pos["symbol"], "closed", "-", "-", "-", "-",
+                         f"{pos['realized_pnl']:+.2f}"])
+            continue
+        try:
+            bars = data.fetch_daily(pos["symbol"])
+            pos = trades.enrich(pos, bars[-1]["close"], bars[-1]["date"])
+        except data.DataError as e:
+            print(f"  ! {e}", file=sys.stderr)
+            rows.append([pos["symbol"], f"{pos['qty']:g}", f"{pos['avg_cost']:.2f}",
+                         "-", "-", "-", f"{pos['realized_pnl']:+.2f}"])
+            continue
+        tot_unreal += pos["unrealized_pnl"] or 0.0
+        tot_mv += pos["market_value"]
+        rows.append([
+            pos["symbol"], f"{pos['qty']:g}", f"{pos['avg_cost']:.2f}",
+            f"{pos.get('last_price') or 0:.2f}", f"{pos['market_value']:.2f}",
+            f"{pos['unrealized_pnl']:+.2f} ({pos['unrealized_pct']:+.1f}%)"
+            if pos["unrealized_pnl"] is not None else "-",
+            f"{pos['realized_pnl']:+.2f}",
+        ])
+    headers = ["SYMBOL", "QTY", "AVG COST", "LAST", "MKT VALUE", "UNREALIZED", "REALIZED"]
+    widths = [max(len(h), *(len(r[i]) for r in rows)) for i, h in enumerate(headers)]
+    print("  ".join(h.rjust(w) for h, w in zip(headers, widths)))
+    for r in rows:
+        print("  ".join(cell.rjust(w) for cell, w in zip(r, widths)))
+    cash = trades.cash_balance()
+    print(f"\nOpen market value {tot_mv:.2f} · unrealized {tot_unreal:+.2f}"
+          f" · realized {tot_real:+.2f}")
+    print(f"Cash on hand {cash:.2f} · account value {cash + tot_mv:.2f}")
+    return 0
+
+
 def cmd_research(args) -> int:
     from . import analyst, report
 
@@ -124,6 +234,30 @@ def main() -> int:
 
     p_scan = sub.add_parser("scan", help="indicator screen for the watchlist (no API key needed)")
     p_scan.set_defaults(func=cmd_scan)
+
+    for side, blurb in (("buy", "log a buy fill"), ("sell", "log a sell fill")):
+        p_t = sub.add_parser(side, help=f"{blurb} (date defaults to today)")
+        p_t.add_argument("symbol")
+        p_t.add_argument("qty", type=float)
+        p_t.add_argument("price", type=float)
+        p_t.add_argument("date", nargs="?", help="YYYY-MM-DD, default today")
+        p_t.add_argument("--note", help="why you took the trade")
+        p_t.set_defaults(func=cmd_buy if side == "buy" else cmd_sell)
+
+    for verb, blurb, fn in (("deposit", "add cash to the account", cmd_deposit),
+                            ("withdraw", "take cash out of the account", cmd_withdraw)):
+        p_c = sub.add_parser(verb, help=f"{blurb} (date defaults to today)")
+        p_c.add_argument("amount", type=float)
+        p_c.add_argument("date", nargs="?", help="YYYY-MM-DD, default today")
+        p_c.add_argument("--note")
+        p_c.set_defaults(func=fn)
+
+    p_tr = sub.add_parser("trades", help="show the trade log")
+    p_tr.add_argument("symbol", nargs="?")
+    p_tr.set_defaults(func=cmd_trades)
+
+    p_pnl = sub.add_parser("pnl", help="positions with unrealized/realized P&L")
+    p_pnl.set_defaults(func=cmd_pnl)
 
     p_res = sub.add_parser("research", help="Claude deep research (whole watchlist, or named symbols)")
     p_res.add_argument("symbols", nargs="*")

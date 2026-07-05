@@ -46,6 +46,15 @@
     background: var(--surface); color: var(--ink); cursor: pointer; font: inherit;
   }
   #err { color: var(--down); font-size: 12px; min-height: 16px; margin: 0 4px; }
+  #acct {
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+    display: flex; flex-direction: column; gap: 3px; cursor: pointer;
+  }
+  #acct:hover { background: var(--page); }
+  #acct .row { display: flex; justify-content: space-between; font-size: 12px; }
+  #acct .row span { color: var(--muted); }
+  #acct .row b { font-variant-numeric: tabular-nums; }
+  #acct .hint { color: var(--muted); font-size: 10px; }
   #symbols { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
   #symbols li {
     display: flex; align-items: center; justify-content: space-between;
@@ -74,6 +83,53 @@
   }
   .tile .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
   .tile .v { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .tile .v.up { color: var(--up); } .tile .v.down { color: var(--down); }
+  .tile.held { border-color: color-mix(in srgb, var(--sma20) 45%, transparent); }
+  #tradeForm { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  #tradeForm .lbl {
+    color: var(--muted); font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.04em; margin-right: 2px;
+  }
+  #tradeForm select, #tradeForm input, #tradeForm button {
+    padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--ink); font: inherit; font-size: 13px;
+  }
+  #tradeForm input[type="number"] { width: 92px; }
+  #tradeForm input[type="date"] { color-scheme: light dark; }
+  #tradeForm #tNote { flex: 1; min-width: 130px; }
+  #tradeForm button { cursor: pointer; }
+  #tMsg { font-size: 12px; }
+  #tMsg.err { color: var(--down); } #tMsg.ok { color: var(--up); }
+  #setups, #plan {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 14px; display: flex; flex-direction: column; gap: 8px;
+  }
+  #setups .hd, #plan .hd { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  #setups .hd .t, #plan .hd .t {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--ink-2);
+  }
+  #setups .hd .sub, #plan .hd .sub { color: var(--muted); font-size: 11px; }
+  #plan.held { border-color: color-mix(in srgb, var(--sma20) 45%, transparent); }
+  .lvls { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pl {
+    border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px;
+    font-size: 12px;
+  }
+  .pl .k { color: var(--muted); }
+  .pl .v { font-weight: 600; font-variant-numeric: tabular-nums; }
+  #plan .note { color: var(--muted); font-size: 12px; }
+  .setup { display: flex; gap: 10px; align-items: baseline; }
+  .badge {
+    flex: none; font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+    border-radius: 5px; padding: 2px 7px; min-width: 58px; text-align: center;
+  }
+  .badge.long { color: var(--up); background: color-mix(in srgb, var(--up) 13%, transparent); }
+  .badge.caution { color: var(--down); background: color-mix(in srgb, var(--down) 13%, transparent); }
+  .badge.neutral { color: var(--ink-2); background: color-mix(in srgb, var(--muted) 16%, transparent); }
+  .setup .body { font-size: 13px; min-width: 0; }
+  .setup .body .sub { color: var(--muted); font-size: 12px; }
+  #setups .none { color: var(--muted); font-size: 13px; }
   #chartCard {
     flex: 1; min-height: 0; background: var(--surface); border: 1px solid var(--border);
     border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column;
@@ -105,6 +161,12 @@
     <button type="submit">Add</button>
   </form>
   <div id="err"></div>
+  <div id="acct" title="click to deposit or withdraw cash">
+    <div class="row"><span>Cash</span><b id="acCash">–</b></div>
+    <div class="row"><span>Positions</span><b id="acPos">–</b></div>
+    <div class="row"><span>Account</span><b id="acTotal">–</b></div>
+    <div class="hint">click to deposit / withdraw</div>
+  </div>
   <ul id="symbols"></ul>
 </aside>
 <main>
@@ -115,6 +177,18 @@
     <span class="asof" id="hAsOf"></span>
   </header>
   <div id="tiles"></div>
+  <form id="tradeForm" hidden>
+    <span class="lbl">Log fill</span>
+    <select id="tSide"><option value="buy">Buy</option><option value="sell">Sell</option></select>
+    <input id="tQty" type="number" step="any" min="0" placeholder="qty" required>
+    <input id="tPrice" type="number" step="any" min="0" placeholder="price" required>
+    <input id="tDate" type="date" title="fill date (blank = today)">
+    <input id="tNote" placeholder="note (optional)" maxlength="120">
+    <button type="submit">Log</button>
+    <span id="tMsg"></span>
+  </form>
+  <div id="plan" hidden></div>
+  <div id="setups" hidden></div>
   <div id="chartCard">
     <div id="chartBar">
       <span class="chip"><i style="background:var(--sma20)"></i>SMA 20</span>
@@ -137,7 +211,7 @@ const css = (name) => getComputedStyle(document.documentElement).getPropertyValu
 const $ = (id) => document.getElementById(id);
 
 let chart = null, candleSeries = null, volSeries = null, smaSeries = {};
-let priceLines = [];
+let priceLines = [], tradeMarkers = null;
 let current = null, lastData = null, months = 6;
 
 function chartTheme() {
@@ -176,6 +250,7 @@ function ensureChart() {
       crosshairMarkerVisible: false,
     });
   }
+  tradeMarkers = LWC.createSeriesMarkers(candleSeries, []);
   new ResizeObserver(() => chart.applyOptions({})).observe($('chart'));
   chart.subscribeCrosshairMove(onCrosshair);
 }
@@ -219,6 +294,19 @@ function render(data) {
   }));
   data.levels.support.forEach(p => mkLine(p, css('--support'), 'S'));
   data.levels.resistance.forEach(p => mkLine(p, css('--resist'), 'R'));
+  const pos = data.position;
+  if (pos && pos.qty) mkLine(pos.avg_cost, css('--sma20'), 'AVG COST');
+  if (data.plan) mkLine(data.plan.full_profit, up, 'TAKE PROFIT');
+
+  // B/S arrows; snap fill dates to the first bar on/after them (weekend fills).
+  const lastTime = data.bars[data.bars.length - 1].time;
+  tradeMarkers.setMarkers((data.trades || []).map(t => ({
+    time: (data.bars.find(b => b.time >= t.date) || {}).time || lastTime,
+    position: t.side === 'buy' ? 'belowBar' : 'aboveBar',
+    color: t.side === 'buy' ? up : down,
+    shape: t.side === 'buy' ? 'arrowUp' : 'arrowDown',
+    text: `${t.side === 'buy' ? 'B' : 'S'} ${t.qty} @ ${t.price}`,
+  })).sort((a, b) => (a.time < b.time ? -1 : 1)));
 
   const s = data.snapshot;
   $('hSym').textContent = data.symbol;
@@ -234,14 +322,142 @@ function render(data) {
     ['Support', s.support], ['Resistance', s.resistance],
     ['Vol 20/60', s.volume_ratio_20d_60d],
   ];
-  $('tiles').innerHTML = tiles.map(([k, v]) =>
-    `<div class="tile"><div class="k">${k}</div><div class="v">${v ?? '–'}</div></div>`).join('');
+  if (pos) {
+    const sign = (x) => x > 0 ? 'up' : x < 0 ? 'down' : '';
+    if (pos.qty) {
+      tiles.push(
+        ['Position', `${pos.qty} @ ${pos.avg_cost.toFixed(2)}`, '', true],
+        ['Unrealized', `${pos.unrealized_pnl > 0 ? '+' : ''}${pos.unrealized_pnl.toFixed(2)} (${pos.unrealized_pct > 0 ? '+' : ''}${pos.unrealized_pct.toFixed(1)}%)`,
+         sign(pos.unrealized_pnl), true]);
+    }
+    if (pos.realized_pnl) {
+      tiles.push(['Realized', `${pos.realized_pnl > 0 ? '+' : ''}${pos.realized_pnl.toFixed(2)}`,
+                  sign(pos.realized_pnl), true]);
+    }
+  }
+  $('tiles').innerHTML = tiles.map(([k, v, cls, held]) =>
+    `<div class="tile${held ? ' held' : ''}"><div class="k">${k}</div>` +
+    `<div class="v ${cls || ''}">${v ?? '–'}</div></div>`).join('');
 
+  renderPlan(data);
+  renderSetups(data);
+  if (data.account) paintAccount(data.account);
+  $('tradeForm').hidden = false;
+  $('tPrice').placeholder = s.price.toFixed(2);
   applyRange();
 }
 
+const BIAS_LABEL = { long: 'LONG', caution: 'CAUTION', neutral: 'WATCH' };
+const STANCE_CLS = {
+  hold: 'long', caution: 'neutral', reduce: 'caution',   // position plan
+  setup: 'long', wait: 'neutral', avoid: 'caution',      // entry read
+};
+const CARD_SUB = 'chart math only; news &amp; earnings are <code>scout research</code>\'s job';
+
+function verdictCard(el, title, date, stance, headline, why, chips, notes) {
+  el.innerHTML =
+    `<div class="hd"><span class="t">${title}</span>` +
+    `<span class="sub">recomputed from the ${date} close — ${CARD_SUB}</span></div>` +
+    `<div class="setup"><span class="badge ${STANCE_CLS[stance] ?? 'neutral'}">` +
+    `${stance.toUpperCase()}</span>` +
+    `<div class="body"><div><b>${headline}</b></div><div class="sub">${why}</div></div></div>` +
+    `<div class="lvls">` + chips.filter(([, v]) => v != null).map(([k, v]) =>
+      `<span class="pl"><span class="k">${k}</span> <span class="v">${v}</span></span>`).join('') +
+    `</div>` +
+    (notes && notes.length ? `<div class="note">${notes.join(' ')}</div>` : '');
+  el.hidden = false;
+}
+
+function renderPlan(data) {
+  const el = $('plan'), plan = data.plan, entry = data.entry;
+  el.classList.toggle('held', !!plan);
+  if (!plan && !entry) { el.hidden = true; return; }
+  if (!plan) {
+    verdictCard(el, `Entry read · ${data.symbol}`, data.snapshot.date,
+      entry.stance, entry.headline, entry.why, [
+        ['Stop if triggered', entry.stop_if_triggered],
+        ['Pullback zone', entry.pullback_zone],
+        ['Breakout above', entry.breakout_above],
+        ['Buyable above', entry.flip_above],
+        ['Support', entry.support],
+        ['Resistance', entry.resistance],
+        ['Cash covers', entry.affordable_shares == null ? null
+          : `${entry.affordable_shares} sh`],
+      ], entry.funding_hint ? [entry.funding_hint] : []);
+    return;
+  }
+  const chips = [
+    ['Reassess below', plan.stop_reassess],
+    ['Hard stop', plan.stop_hard],
+    ['Add above', plan.add_above],
+    ['Targets', plan.targets.length ? plan.targets.join(' / ') : 'blue sky above'],
+    ['Trim zone', plan.trim_zone[0] === plan.trim_zone[1]
+      ? plan.trim_zone[0].toFixed(2) : plan.trim_zone.map(v => v.toFixed(2)).join(' – ')],
+    ['Full profit', plan.full_profit.toFixed(2)],
+    ['P&L at hard stop', plan.hard_stop_pnl_pct == null ? null
+      : `${plan.hard_stop_pnl_pct > 0 ? '+' : ''}${plan.hard_stop_pnl_pct}%`],
+  ];
+  verdictCard(el, `Position plan · ${data.symbol}`, data.snapshot.date,
+    plan.stance, plan.headline, plan.why, chips, plan.notes);
+}
+
+function renderSetups(data) {
+  const el = $('setups');
+  const head =
+    `<div class="hd"><span class="t">Setups to watch · next session</span>` +
+    `<span class="sub">rule-based screen from the ${data.snapshot.date} close — ` +
+    `not advice; run <code>scout research</code> for the analyst note</span></div>`;
+  const setups = data.setups || [];
+  if (!setups.length) {
+    const s0 = data.levels.support[0], r0 = data.levels.resistance[0];
+    const near = [s0 && `S ${s0.toFixed(2)}`, r0 && `R ${r0.toFixed(2)}`]
+      .filter(Boolean).join(' / ');
+    el.innerHTML = head + `<div class="none">No setup in range — price isn't ` +
+      `pressing a level or moving average${near ? ` (nearest: ${near})` : ''}. ` +
+      `Let it come to you.</div>`;
+  } else {
+    el.innerHTML = head + setups.map(x =>
+      `<div class="setup"><span class="badge ${x.bias}">${BIAS_LABEL[x.bias] ?? x.bias}</span>` +
+      `<div class="body"><div><b>${x.name}</b> — ${x.trigger}</div>` +
+      `<div class="sub">${x.note}${x.stop != null ? ` · invalidation ${x.stop.toFixed(2)}` : ''}</div>` +
+      `</div></div>`).join('');
+  }
+  el.hidden = false;
+}
+
+const fmt$ = (v) => '$' + v.toLocaleString(undefined,
+  { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function paintAccount(a) {
+  $('acCash').textContent = fmt$(a.cash);
+  $('acPos').textContent = fmt$(a.positions_value);
+  $('acTotal').textContent = fmt$(a.account_value);
+}
+
+async function refreshAccount() {
+  paintAccount(await (await fetch('/api/account')).json());
+}
+
+$('acct').onclick = async () => {
+  const raw = prompt('Adjust cash: positive to deposit, negative to withdraw');
+  if (raw == null || !raw.trim()) return;
+  const amount = Number(raw);
+  if (!isFinite(amount) || !amount) { $('err').textContent = 'not a number'; return; }
+  $('err').textContent = '';
+  const resp = await fetch('/api/cash', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount }),
+  });
+  const result = await resp.json();
+  if (result.error) { $('err').textContent = result.error; return; }
+  paintAccount(result.account);
+  if (current) loadSymbol(current);  // affordability chips may change
+};
+
 async function loadSymbol(sym) {
+  if (sym !== current) { $('tMsg').textContent = ''; $('tMsg').className = ''; }
   current = sym;
+  history.replaceState(null, '', '#' + sym);
   document.querySelectorAll('#symbols li').forEach(li =>
     li.classList.toggle('active', li.dataset.sym === sym));
   $('hSym').textContent = sym; $('hPx').textContent = '…';
@@ -287,6 +503,28 @@ $('addForm').onsubmit = async (e) => {
   if (list && list.includes(sym)) loadSymbol(sym);
 };
 
+$('tradeForm').onsubmit = async (e) => {
+  e.preventDefault();
+  if (!current) return;
+  const msg = $('tMsg');
+  msg.className = ''; msg.textContent = '…';
+  const resp = await fetch('/api/trades', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      symbol: current, side: $('tSide').value,
+      qty: Number($('tQty').value), price: Number($('tPrice').value),
+      date: $('tDate').value || null, note: $('tNote').value.trim(),
+    }),
+  });
+  const result = await resp.json();
+  if (result.error) { msg.className = 'err'; msg.textContent = result.error; return; }
+  const t = result.trade;
+  msg.className = 'ok';
+  msg.textContent = `logged: ${t.date} ${t.side} ${t.qty} ${t.symbol} @ ${t.price.toFixed(2)}`;
+  $('tQty').value = ''; $('tNote').value = '';
+  loadSymbol(current);  // refresh tiles, markers, avg-cost line
+};
+
 $('ranges').onclick = (e) => {
   const btn = e.target.closest('button'); if (!btn) return;
   months = Number(btn.dataset.m);
@@ -299,9 +537,11 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
 });
 
 (async function init() {
+  refreshAccount();
   const symbols = await (await fetch('/api/watchlist')).json();
   paintList(symbols);
-  if (symbols.length) loadSymbol(symbols[0]);
+  const want = location.hash.slice(1).toUpperCase();
+  if (symbols.length) loadSymbol(symbols.includes(want) ? want : symbols[0]);
 })();
 </script>
 </body>
