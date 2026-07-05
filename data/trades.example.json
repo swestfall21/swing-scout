@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "date": "2026-01-05",
+    "symbol": "NVDA",
+    "side": "buy",
+    "qty": 10,
+    "price": 180.5,
+    "note": "breakout over the January base"
+  },
+  {
+    "id": 2,
+    "date": "2026-02-11",
+    "symbol": "NVDA",
+    "side": "sell",
+    "qty": 5,
+    "price": 205.0,
+    "note": "trimmed half into resistance"
+  }
+]

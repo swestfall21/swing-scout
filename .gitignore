@@ -4,3 +4,8 @@ __pycache__/
 .env
 data/cache/
 reports/
+
+# personal trading data — see data/*.example.json for the formats
+data/watchlist.json
+data/trades.json
+data/cash.json
