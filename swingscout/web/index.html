@@ -55,6 +55,12 @@
   #acct .row span { color: var(--muted); }
   #acct .row b { font-variant-numeric: tabular-nums; }
   #acct .hint { color: var(--muted); font-size: 10px; }
+  #pfNav {
+    padding: 7px 10px; border-radius: 6px; cursor: pointer; font-weight: 600;
+  }
+  #pfNav:hover { background: var(--page); }
+  #pfNav.active { background: var(--page); box-shadow: inset 2px 0 0 var(--sma20); }
+  #pfNav small { color: var(--muted); font-weight: 400; }
   #symbols { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
   #symbols li {
     display: flex; align-items: center; justify-content: space-between;
@@ -68,15 +74,22 @@
   }
   #symbols li:hover .rm { visibility: visible; }
   #symbols li .rm:hover { color: var(--down); }
+  #symbols li .star { display: none; color: var(--sma20); font-size: 11px; margin-left: 6px; }
+  #symbols li.held .star { display: inline; }
   /* ---- main ---- */
-  main { display: flex; flex-direction: column; padding: 16px 20px; gap: 12px; min-width: 0; }
+  main { display: flex; flex-direction: column; padding: 16px 20px; min-width: 0; }
+  #symView, #pfView {
+    display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0;
+  }
+  #symView[hidden], #pfView[hidden] { display: none; }
+  #pfView { overflow-y: auto; }
   header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
   header .sym { font-size: 22px; font-weight: 700; }
   header .px { font-size: 22px; font-variant-numeric: tabular-nums; }
   header .chg { font-size: 14px; font-weight: 600; }
   header .chg.up { color: var(--up); } header .chg.down { color: var(--down); }
   header .asof { color: var(--muted); font-size: 12px; margin-left: auto; }
-  #tiles { display: flex; gap: 8px; flex-wrap: wrap; }
+  #tiles, #pfTiles { display: flex; gap: 8px; flex-wrap: wrap; }
   .tile {
     background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
     padding: 6px 12px; min-width: 84px;
@@ -130,27 +143,62 @@
   .setup .body { font-size: 13px; min-width: 0; }
   .setup .body .sub { color: var(--muted); font-size: 12px; }
   #setups .none { color: var(--muted); font-size: 13px; }
-  #chartCard {
+  #chartCard, #pfCard {
     flex: 1; min-height: 0; background: var(--surface); border: 1px solid var(--border);
     border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column;
   }
-  #chartBar { display: flex; align-items: center; gap: 14px; padding: 2px 4px 8px; flex-wrap: wrap; }
+  #pfCard { min-height: 340px; max-height: 56vh; }
+  #pfHoldCard, #pfNote { flex: none; }
+  #chartBar, #pfBar { display: flex; align-items: center; gap: 14px; padding: 2px 4px 8px; flex-wrap: wrap; }
   .chip { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 12px; }
   .chip i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
-  #ranges { margin-left: auto; display: flex; gap: 4px; }
-  #ranges button {
+  .chip i.dash {
+    background: repeating-linear-gradient(90deg, var(--muted) 0 3px, transparent 3px 6px);
+  }
+  #ranges { margin-left: auto; }
+  #ranges, .btns { display: flex; gap: 4px; }
+  #ranges button, .btns button {
     border: 1px solid var(--border); background: transparent; color: var(--ink-2);
     border-radius: 6px; padding: 3px 10px; cursor: pointer; font: inherit; font-size: 12px;
   }
-  #ranges button.active { background: var(--page); color: var(--ink); font-weight: 600; }
-  #chart { flex: 1; min-height: 0; position: relative; }
-  #ohlc {
+  #ranges button.active, .btns button.active {
+    background: var(--page); color: var(--ink); font-weight: 600;
+  }
+  #pfRanges { margin-left: auto; }
+  #chart, #pfChart { flex: 1; min-height: 0; position: relative; }
+  #ohlc, #pfInfo {
     position: absolute; top: 6px; left: 8px; z-index: 5; font-size: 12px;
     color: var(--ink-2); font-variant-numeric: tabular-nums; pointer-events: none;
     background: color-mix(in srgb, var(--surface) 82%, transparent);
     padding: 2px 6px; border-radius: 5px;
   }
-  #empty { color: var(--muted); display: grid; place-items: center; height: 100%; }
+  #empty, #pfEmpty { color: var(--muted); display: grid; place-items: center; height: 100%; }
+  /* ---- holdings table ---- */
+  #pfHoldCard {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 14px; overflow-x: auto;
+  }
+  #pfHoldCard .hd {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--ink-2); margin-bottom: 6px;
+  }
+  #pfHold { border-collapse: collapse; width: 100%; font-size: 13px; }
+  #pfHold th {
+    text-align: right; color: var(--muted); font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em; padding: 4px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  #pfHold td {
+    text-align: right; padding: 6px 10px; font-variant-numeric: tabular-nums;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+  }
+  #pfHold tr:last-child td { border-bottom: none; }
+  #pfHold th:first-child, #pfHold td:first-child { text-align: left; }
+  #pfHold td:first-child { font-weight: 600; }
+  #pfHold tbody tr { cursor: pointer; }
+  #pfHold tbody tr:hover td { background: var(--page); }
+  #pfHold .up { color: var(--up); } #pfHold .down { color: var(--down); }
+  #pfNote { color: var(--muted); font-size: 12px; }
 </style>
 </head>
 <body>
@@ -167,9 +215,11 @@
     <div class="row"><span>Account</span><b id="acTotal">–</b></div>
     <div class="hint">click to deposit / withdraw</div>
   </div>
+  <div id="pfNav">Portfolio <small>· performance</small></div>
   <ul id="symbols"></ul>
 </aside>
 <main>
+<div id="symView">
   <header>
     <span class="sym" id="hSym">—</span>
     <span class="px" id="hPx"></span>
@@ -203,6 +253,37 @@
     </div>
     <div id="chart"><div id="empty">Add a symbol to get started</div><div id="ohlc" hidden></div></div>
   </div>
+</div>
+<div id="pfView" hidden>
+  <header>
+    <span class="sym">Portfolio</span>
+    <span class="px" id="pfValue"></span>
+    <span class="chg" id="pfChg"></span>
+    <span class="asof" id="pfAsOf"></span>
+  </header>
+  <div id="pfTiles"></div>
+  <div id="pfCard">
+    <div id="pfBar">
+      <span class="chip" id="pfChipVal"><i style="background:var(--sma20)"></i>Account value</span>
+      <span class="chip" id="pfChipDep"><i class="dash"></i>Net deposits</span>
+      <div class="btns" id="pfModes">
+        <button data-mode="value" class="active">$ Value</button>
+        <button data-mode="pct">Return %</button>
+      </div>
+      <div class="btns" id="pfRanges">
+        <button data-r="1m">1M</button><button data-r="3m">3M</button>
+        <button data-r="6m">6M</button><button data-r="ytd">YTD</button>
+        <button data-r="1y">1Y</button><button data-r="all" class="active">All</button>
+      </div>
+    </div>
+    <div id="pfChart"><div id="pfInfo" hidden></div></div>
+  </div>
+  <div id="pfHoldCard">
+    <div class="hd">Holdings · per-position performance</div>
+    <table id="pfHold"></table>
+  </div>
+  <div id="pfNote"></div>
+</div>
 </main>
 <script src="/lightweight-charts.js"></script>
 <script>
@@ -428,10 +509,18 @@ function renderSetups(data) {
 const fmt$ = (v) => '$' + v.toLocaleString(undefined,
   { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+let heldSet = new Set();
+
+function decorateHeld() {
+  document.querySelectorAll('#symbols li').forEach(li =>
+    li.classList.toggle('held', heldSet.has(li.dataset.sym)));
+}
+
 function paintAccount(a) {
   $('acCash').textContent = fmt$(a.cash);
   $('acPos').textContent = fmt$(a.positions_value);
   $('acTotal').textContent = fmt$(a.account_value);
+  if (a.held) { heldSet = new Set(a.held); decorateHeld(); }
 }
 
 async function refreshAccount() {
@@ -454,7 +543,164 @@ $('acct').onclick = async () => {
   if (current) loadSymbol(current);  // affordability chips may change
 };
 
+/* ---- portfolio performance view ---- */
+let pfChart = null, pfValSeries = null, pfDepSeries = null, pfPctSeries = null;
+let pfRange = 'all', pfMode = 'value', pfData = null;
+const RANGE_LABEL = { '1m': '1M', '3m': '3M', '6m': '6M', ytd: 'YTD', '1y': '1Y', all: 'All-time' };
+const fmtPct = (v) => v == null ? '–' : `${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
+const fmtPnl = (v) => v == null ? '–' : (v < 0 ? '−' : '+') + fmt$(Math.abs(v));
+const signCls = (v) => v > 0 ? 'up' : v < 0 ? 'down' : '';
+
+function showPortfolio() {
+  history.replaceState(null, '', '#portfolio');
+  $('symView').hidden = true; $('pfView').hidden = false;
+  $('pfNav').classList.add('active');
+  document.querySelectorAll('#symbols li').forEach(li => li.classList.remove('active'));
+  loadPortfolio();
+}
+
+function showSymView() {
+  $('pfView').hidden = true; $('symView').hidden = false;
+  $('pfNav').classList.remove('active');
+}
+
+async function loadPortfolio() {
+  const resp = await fetch(`/api/performance?range=${pfRange}`);
+  const data = await resp.json();
+  if (data.error) { $('err').textContent = data.error; return; }
+  $('err').textContent = '';
+  pfData = data;
+  renderPortfolio(data);
+}
+
+function ensurePfChart() {
+  if (pfChart) return;
+  pfChart = LWC.createChart($('pfChart'), chartTheme());
+  pfChart.applyOptions({ localization: { priceFormatter: fmt$ } });
+  pfValSeries = pfChart.addSeries(LWC.AreaSeries, {
+    lineColor: css('--sma20'), lineWidth: 2,
+    topColor: css('--sma20') + '38', bottomColor: css('--sma20') + '00',
+    priceLineVisible: false,
+  });
+  pfDepSeries = pfChart.addSeries(LWC.LineSeries, {
+    color: css('--muted'), lineWidth: 1,
+    lineStyle: LWC.LineStyle.Dashed, lineType: LWC.LineType.WithSteps,
+    priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+  });
+  pfPctSeries = pfChart.addSeries(LWC.BaselineSeries, {
+    baseValue: { type: 'price', price: 0 },
+    topLineColor: css('--up'), topFillColor1: css('--up') + '30', topFillColor2: css('--up') + '00',
+    bottomLineColor: css('--down'), bottomFillColor1: css('--down') + '00', bottomFillColor2: css('--down') + '30',
+    lineWidth: 2, priceLineVisible: false,
+  });
+  new ResizeObserver(() => pfChart.applyOptions({})).observe($('pfChart'));
+  pfChart.subscribeCrosshairMove(onPfCrosshair);
+}
+
+function onPfCrosshair(param) {
+  const el = $('pfInfo');
+  const pt = param?.time && pfData?.series.find(s => s.t === param.time);
+  if (!pt) { el.hidden = true; return; }
+  el.hidden = false;
+  el.textContent = `${pt.t}  value ${fmt$(pt.v)}  ·  ${fmtPct(pt.p)} TWR` +
+                   `  ·  net deposits ${fmt$(pt.d)}`;
+}
+
+function renderPortfolio(data) {
+  if (data.empty) {
+    $('pfValue').textContent = ''; $('pfChg').textContent = '';
+    $('pfAsOf').textContent = '';
+    $('pfTiles').innerHTML = '';
+    $('pfHold').innerHTML = '';
+    $('pfNote').textContent = 'No trades or cash logged yet — log a deposit and a fill to start the equity curve.';
+    return;
+  }
+  const s = data.summary, label = RANGE_LABEL[data.range];
+  $('pfValue').textContent = fmt$(s.account_value);
+  $('pfChg').textContent = s.window_return_pct == null ? ''
+    : `${s.window_return_pct >= 0 ? '▲' : '▼'} ${Math.abs(s.window_return_pct).toFixed(2)}% ${label}`;
+  $('pfChg').className = 'chg ' + (s.window_return_pct >= 0 ? 'up' : 'down');
+  $('pfAsOf').textContent = `as of ${data.as_of} close · deposits don't count as gains (time-weighted)`;
+
+  const tiles = [
+    ['Account value', fmt$(s.account_value), ''],
+    [`${label} return`, fmtPct(s.window_return_pct), signCls(s.window_return_pct)],
+    [`${label} P&L`, fmtPnl(s.window_pnl), signCls(s.window_pnl)],
+  ];
+  if (data.range !== 'all') tiles.push(['Total P&L', fmtPnl(s.total_pnl), signCls(s.total_pnl)]);
+  tiles.push(['Net deposits', fmt$(s.net_deposits), ''], ['Cash', fmt$(s.cash), '']);
+  $('pfTiles').innerHTML = tiles.map(([k, v, cls]) =>
+    `<div class="tile"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`).join('');
+
+  ensurePfChart();
+  pfValSeries.setData(data.series.map(p => ({ time: p.t, value: p.v })));
+  pfDepSeries.setData(data.series.map(p => ({ time: p.t, value: p.d })));
+  pfPctSeries.setData(data.series.map(p => ({ time: p.t, value: p.p })));
+  applyPfMode();
+  pfChart.timeScale().fitContent();
+
+  renderHoldings(data);
+  const notes = [];
+  if (!data.holdings.length) notes.push('No open positions.');
+  if ((data.missing || []).length) {
+    notes.push(`No price data for ${data.missing.join(', ')} — excluded from the curve and table.`);
+  }
+  $('pfNote').textContent = notes.join(' ');
+}
+
+function applyPfMode() {
+  const value = pfMode === 'value';
+  pfChart.applyOptions({ localization: {
+    priceFormatter: value ? fmt$ : (v) => v.toFixed(1) + '%',
+  } });
+  pfValSeries.applyOptions({ visible: value });
+  pfDepSeries.applyOptions({ visible: value });
+  pfPctSeries.applyOptions({ visible: !value });
+  $('pfChipVal').style.display = value ? '' : 'none';
+  $('pfChipDep').style.display = value ? '' : 'none';
+}
+
+function renderHoldings(data) {
+  const label = RANGE_LABEL[data.range];
+  if (!data.holdings.length) {
+    $('pfHold').innerHTML = '';
+    return;
+  }
+  const rows = data.holdings.map(h => `<tr data-sym="${h.symbol}">
+    <td>${h.symbol}</td><td>${h.qty}</td><td>${h.avg_cost.toFixed(2)}</td>
+    <td>${h.last_price.toFixed(2)}</td><td>${fmt$(h.market_value)}</td>
+    <td>${h.weight_pct == null ? '–' : h.weight_pct.toFixed(1) + '%'}</td>
+    <td class="${signCls(h.window_return_pct)}">${fmtPct(h.window_return_pct)}</td>
+    <td class="${signCls(h.window_pnl)}">${fmtPnl(h.window_pnl)}</td>
+    <td class="${signCls(h.unrealized_pct)}">${fmtPct(h.unrealized_pct)}</td>
+    <td class="${signCls(h.realized_pnl)}">${h.realized_pnl ? fmtPnl(h.realized_pnl) : '–'}</td>
+  </tr>`).join('');
+  $('pfHold').innerHTML = `<thead><tr>
+    <th>Symbol</th><th>Qty</th><th>Avg cost</th><th>Last</th><th>Value</th><th>Weight</th>
+    <th>${label} return</th><th>${label} P&L</th><th>Total return</th><th>Realized</th>
+  </tr></thead><tbody>${rows}</tbody>`;
+  $('pfHold').querySelectorAll('tbody tr').forEach(tr =>
+    tr.onclick = () => loadSymbol(tr.dataset.sym));
+}
+
+$('pfNav').onclick = showPortfolio;
+
+$('pfRanges').onclick = (e) => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  pfRange = btn.dataset.r;
+  document.querySelectorAll('#pfRanges button').forEach(b => b.classList.toggle('active', b === btn));
+  loadPortfolio();
+};
+
+$('pfModes').onclick = (e) => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  pfMode = btn.dataset.mode;
+  document.querySelectorAll('#pfModes button').forEach(b => b.classList.toggle('active', b === btn));
+  if (pfData && !pfData.empty) { applyPfMode(); pfChart.timeScale().fitContent(); }
+};
+
 async function loadSymbol(sym) {
+  showSymView();
   if (sym !== current) { $('tMsg').textContent = ''; $('tMsg').className = ''; }
   current = sym;
   history.replaceState(null, '', '#' + sym);
@@ -474,12 +720,14 @@ function paintList(symbols) {
   for (const sym of symbols) {
     const li = document.createElement('li');
     li.dataset.sym = sym;
-    li.innerHTML = `<span>${sym}</span><span class="rm" title="remove">✕</span>`;
+    li.innerHTML = `<span>${sym}<span class="star" title="open position">★</span></span>` +
+                   `<span class="rm" title="remove">✕</span>`;
     li.querySelector('.rm').onclick = (e) => { e.stopPropagation(); mutate('remove', sym); };
     li.onclick = () => loadSymbol(sym);
     if (sym === current) li.classList.add('active');
     ul.appendChild(li);
   }
+  decorateHeld();
 }
 
 async function mutate(action, symbol) {
@@ -534,12 +782,23 @@ $('ranges').onclick = (e) => {
 
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
   if (lastData) { chart.applyOptions(chartTheme()); render(lastData); }
+  if (pfChart) {
+    pfChart.applyOptions(chartTheme());
+    pfValSeries.applyOptions({ lineColor: css('--sma20'),
+      topColor: css('--sma20') + '38', bottomColor: css('--sma20') + '00' });
+    pfDepSeries.applyOptions({ color: css('--muted') });
+    pfPctSeries.applyOptions({
+      topLineColor: css('--up'), topFillColor1: css('--up') + '30', topFillColor2: css('--up') + '00',
+      bottomLineColor: css('--down'), bottomFillColor1: css('--down') + '00', bottomFillColor2: css('--down') + '30',
+    });
+  }
 });
 
 (async function init() {
   refreshAccount();
   const symbols = await (await fetch('/api/watchlist')).json();
   paintList(symbols);
+  if (location.hash === '#portfolio') { showPortfolio(); return; }
   const want = location.hash.slice(1).toUpperCase();
   if (symbols.length) loadSymbol(symbols.includes(want) ? want : symbols[0]);
 })();

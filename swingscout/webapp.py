@@ -7,14 +7,16 @@ POST /api/watchlist         {"action": "add"|"remove", "symbol": "..."}
 POST /api/trades            {"symbol", "side", "qty", "price", "date"?, "note"?}
 GET  /api/chart/<SYMBOL>    {bars, snapshot, levels, sma, setups, position, trades, ...}
 GET  /api/account           {cash, positions_value, account_value}
+GET  /api/performance?range=1m|3m|6m|ytd|1y|all   equity curve + holdings returns
 POST /api/cash              {"amount": +deposit/-withdrawal, "date"?, "note"?}
 """
 
 import json
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import data, indicators, trades
+from . import data, indicators, performance, trades
 from . import watchlist as wl
 
 WEB_DIR = Path(__file__).parent / "web"
@@ -46,6 +48,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(wl.load())
         elif path == "/api/account":
             self._json(_account_summary())
+        elif path == "/api/performance":
+            self._performance()
         elif path.startswith("/api/chart/"):
             self._chart(path.removeprefix("/api/chart/"))
         else:
@@ -119,6 +123,16 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._json({"ok": True, "entry": entry, "account": _account_summary()})
 
+    def _performance(self):
+        query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        range_key = (query.get("range") or ["all"])[0].lower()
+        try:
+            self._json(performance.build(range_key))
+        except ValueError as e:
+            self._json({"error": str(e)}, 400)
+        except data.DataError as e:
+            self._json({"error": str(e)}, 502)
+
     def _chart(self, raw_symbol: str):
         try:
             symbol = wl.normalize(raw_symbol)
@@ -176,7 +190,8 @@ def _account_summary() -> dict:
     cash = trades.cash_balance()
     mv = sum(p["market_value"] for p in _held_positions())
     return {"cash": round(cash, 2), "positions_value": round(mv, 2),
-            "account_value": round(cash + mv, 2)}
+            "account_value": round(cash + mv, 2),
+            "held": [p["symbol"] for p in trades.portfolio() if p["qty"]]}
 
 
 def _add_funding_context(entry: dict, price: float) -> None:

@@ -75,6 +75,22 @@ Symbols you *don't* hold get an **Entry read** verdict instead: SETUP
 price, or no trend at all), or AVOID (downtrend — includes the reclaim
 level that would flip the verdict).
 
+## Portfolio performance
+
+The dashboard sidebar has a **Portfolio** entry (`#portfolio` in the URL):
+your account's equity curve (cash + positions, from the trade log and real
+daily closes) with 1M / 3M / 6M / YTD / 1Y / All-time ranges. Returns are
+**time-weighted** — each day's gain is measured net of that day's
+deposits/withdrawals, then chained — so funding the account never shows up
+as performance. The chart toggles between **$ Value** (account value area
+plus a dashed net-deposits line, so growth vs. contributions is visible at
+a glance) and **Return %** (green above zero, red below). Below it, a
+holdings table shows each open position's weight, window return (same
+time-weighted math, with your buys/sells as the flows), window P&L, total
+return on cost, and realized P&L — click a row to jump to that symbol's
+chart. Everything is as-of the last close; flows dated after it (e.g. a
+deposit that settles Monday) don't count yet.
+
 ## Cash
 
 Deposits/withdrawals live in `data/cash.json`; the balance is derived

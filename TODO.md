@@ -90,3 +90,16 @@ good after months of use, a paper-trading execution arm can be a v2.
       ✓ 2026-07-04, seeded backfilled deposit ($2,732.95 → $1,600 today),
       validations + buy/sell cash flow exercised end-to-end and test
       entries removed, screenshot verified
+
+- [x] 16. Portfolio performance view — "Portfolio" sidebar entry
+      (`#portfolio`) with 1M/3M/6M/YTD/1Y/All ranges backed by
+      `GET /api/performance?range=…` (`swingscout/performance.py`):
+      daily equity curve (cash + positions, closes forward-filled across
+      per-symbol gaps) with time-weighted returns so deposits never count
+      as gains; chart toggles $ Value (area + dashed net-deposits step
+      line) / Return % (baseline series, green above zero, red below —
+      single axis, formatter swapped via chart localization); stat tiles
+      + per-holding table (weight, window TWR, window P&L, total return,
+      realized), rows deep-link to the symbol page ✓ 2026-07-05, TWR
+      cross-checked by hand against AMZN closes, empty/bad-range/missing-
+      data paths handled, headless screenshots light + dark + % mode
