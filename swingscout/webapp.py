@@ -201,6 +201,13 @@ def _add_funding_context(entry: dict, price: float) -> None:
     cash = trades.cash_balance()
     entry["cash"] = round(cash, 2)
     entry["affordable_shares"] = int(cash // price) if price else 0
+    # Risk-based size: most shares whose loss at the stop stays within 2% of
+    # account value (cash + open positions). Governs sizing; "affordable" is
+    # just raw cash reach and is usually the looser of the two.
+    acct = cash + sum(p["market_value"] for p in _held_positions())
+    trig, stop = entry.get("entry_if_triggered"), entry.get("stop_if_triggered")
+    if trig and stop and trig > stop:
+        entry["risk_max_shares"] = int(0.02 * acct // (trig - stop))
     if entry["affordable_shares"] >= 1:
         return
     winners = [p for p in _held_positions() if (p["unrealized_pct"] or 0) >= 10]

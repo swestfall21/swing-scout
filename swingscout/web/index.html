@@ -464,6 +464,8 @@ function renderPlan(data) {
         ['Resistance', entry.resistance],
         ['Cash covers', entry.affordable_shares == null ? null
           : `${entry.affordable_shares} sh`],
+        ['Risk max (2%)', entry.risk_max_shares == null ? null
+          : `${entry.risk_max_shares} sh`],
       ], entry.funding_hint ? [entry.funding_hint] : []);
     return;
   }

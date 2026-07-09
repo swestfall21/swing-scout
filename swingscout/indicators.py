@@ -131,6 +131,7 @@ def setups(snap: dict, levels: dict, bars: list[dict]) -> list[dict]:
             "trigger": f"close above resistance {res}"
                        + (" — volume already running hot" if vol_hot
                           else " on above-average volume"),
+            "trigger_price": res,
             "stop": round(res - atr, 2),
             "note": "Uptrend pressing its nearest ceiling; a rejection here "
                     "often retests the 20-day line first.",
@@ -144,6 +145,7 @@ def setups(snap: dict, levels: dict, bars: list[dict]) -> list[dict]:
                     "name": f"Pullback to SMA {n}", "bias": "long",
                     "trigger": f"hold the {n}-day line ({ma}) and push back "
                                f"above yesterday's high {prev_high}",
+                    "trigger_price": prev_high,
                     "stop": round(ma - atr * 0.75, 2),
                     "note": "Trend-following entry: buy the bounce, not the "
                             "touch — let the reversal print first.",
@@ -168,6 +170,7 @@ def setups(snap: dict, levels: dict, bars: list[dict]) -> list[dict]:
                 "name": "Support bounce", "bias": "long",
                 "trigger": f"defend {sup}, then push above yesterday's "
                            f"high {prev_high}",
+                "trigger_price": prev_high,
                 "stop": round(sup - atr * 0.5, 2),
                 "note": "Buying a tested floor; if the level cracks intraday "
                         "and doesn't recover, the setup is void.",
@@ -178,6 +181,7 @@ def setups(snap: dict, levels: dict, bars: list[dict]) -> list[dict]:
             "name": "Oversold snapback", "bias": "long",
             "trigger": f"reversal close above yesterday's high {prev_high} "
                        f"(RSI {rsi})",
+            "trigger_price": prev_high,
             "stop": round(prev_low - atr * 0.5, 2),
             "note": "Countertrend mean-reversion — small size, quick exit; "
                     "oversold can stay oversold.",
@@ -220,7 +224,9 @@ def entry_read(snap: dict, levels: dict, setup_list: list[dict]) -> dict:
                 "flip_above": flip, "support": s1, "resistance": r1}
 
     if longs:
-        stop = next((s["stop"] for s in longs if s.get("stop") is not None), None)
+        trig = next((s for s in longs if s.get("stop") is not None), None)
+        stop = trig["stop"] if trig else None
+        entry = trig.get("trigger_price") if trig else None
         names = " / ".join(s["name"].lower() for s in longs)
         return {
             "stance": "setup", "headline": "Worth a starter — on the trigger only",
@@ -228,7 +234,8 @@ def entry_read(snap: dict, levels: dict, setup_list: list[dict]) -> dict:
                     f"{names} flagged below. Take the trigger, don't front-run "
                     "it, and size so the stop costs no more than 1–2% of the "
                     "account."),
-            "stop_if_triggered": stop, "support": s1, "resistance": r1,
+            "stop_if_triggered": stop, "entry_if_triggered": entry,
+            "support": s1, "resistance": r1,
         }
 
     if snap["trend"] == "uptrend":
