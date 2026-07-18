@@ -44,19 +44,22 @@ def fetch_daily(symbol: str, range_: str = "1y") -> list[dict]:
     if not result:
         raise DataError(f"{symbol}: no data returned")
 
-    timestamps = result.get("timestamp") or []
-    quote = result["indicators"]["quote"][0]
     bars = []
-    for i, ts in enumerate(timestamps):
-        o, h, l, c, v = (quote[k][i] for k in ("open", "high", "low", "close", "volume"))
-        if None in (o, h, l, c):
-            continue  # halted/partial days come through as nulls
-        bars.append({
-            "date": dt.date.fromtimestamp(ts).isoformat(),
-            "open": round(o, 4), "high": round(h, 4),
-            "low": round(l, 4), "close": round(c, 4),
-            "volume": int(v or 0),
-        })
+    try:
+        timestamps = result.get("timestamp") or []
+        quote = result["indicators"]["quote"][0]
+        for i, ts in enumerate(timestamps):
+            o, h, l, c, v = (quote[k][i] for k in ("open", "high", "low", "close", "volume"))
+            if None in (o, h, l, c):
+                continue  # halted/partial days come through as nulls
+            bars.append({
+                "date": dt.date.fromtimestamp(ts).isoformat(),
+                "open": round(o, 4), "high": round(h, 4),
+                "low": round(l, 4), "close": round(c, 4),
+                "volume": int(v or 0),
+            })
+    except (KeyError, IndexError, TypeError) as e:
+        raise DataError(f"{symbol}: unexpected response shape from Yahoo ({e!r})") from e
     # Recent IPOs are allowed with a short history — indicators that need a
     # longer window (SMA50/200, RSI, ATR) degrade to "-" until it accrues.
     if len(bars) < 10:

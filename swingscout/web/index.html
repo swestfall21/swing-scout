@@ -151,6 +151,7 @@
   #pfHoldCard, #pfNote { flex: none; }
   #chartBar, #pfBar { display: flex; align-items: center; gap: 14px; padding: 2px 4px 8px; flex-wrap: wrap; }
   .chip { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 12px; }
+  .chip[hidden] { display: none; }
   .chip i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
   .chip i.dash {
     background: repeating-linear-gradient(90deg, var(--muted) 0 3px, transparent 3px 6px);
@@ -246,6 +247,7 @@
       <span class="chip"><i style="background:var(--sma200)"></i>SMA 200</span>
       <span class="chip"><i style="background:var(--support)"></i>Support</span>
       <span class="chip"><i style="background:var(--resist)"></i>Resistance</span>
+      <span class="chip" id="chipEntry" hidden><i style="background:color-mix(in srgb, var(--up) 35%, transparent)"></i>Entry zone</span>
       <div id="ranges">
         <button data-m="3">3M</button><button data-m="6" class="active">6M</button>
         <button data-m="12">1Y</button><button data-m="24">2Y</button>
@@ -292,6 +294,7 @@ const css = (name) => getComputedStyle(document.documentElement).getPropertyValu
 const $ = (id) => document.getElementById(id);
 
 let chart = null, candleSeries = null, volSeries = null, smaSeries = {};
+let entryZone = null;
 let priceLines = [], tradeMarkers = null;
 let current = null, lastData = null, months = 6;
 
@@ -316,6 +319,16 @@ function ensureChart() {
   if (chart) return;
   $('empty').remove();
   chart = LWC.createChart($('chart'), chartTheme());
+  // Shaded stop→trigger band for the entry read; added first so it paints
+  // behind the candles. Excluded from autoscale so an off-screen zone
+  // doesn't stretch the price axis.
+  entryZone = chart.addSeries(LWC.BaselineSeries, {
+    baseValue: { type: 'price', price: 0 },
+    lineVisible: false, topLineColor: 'transparent', bottomLineColor: 'transparent',
+    bottomFillColor1: 'transparent', bottomFillColor2: 'transparent',
+    priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+    autoscaleInfoProvider: () => null,
+  });
   candleSeries = chart.addSeries(LWC.CandlestickSeries, {
     upColor: css('--up'), downColor: css('--down'), borderVisible: false,
     wickUpColor: css('--up'), wickDownColor: css('--down'),
@@ -369,15 +382,34 @@ function render(data) {
 
   priceLines.forEach(pl => candleSeries.removePriceLine(pl));
   priceLines = [];
-  const mkLine = (price, color, title) => priceLines.push(candleSeries.createPriceLine({
-    price, color, lineWidth: 1, lineStyle: LWC.LineStyle.Dashed,
-    axisLabelVisible: true, title,
-  }));
+  const mkLine = (price, color, title, lineWidth = 1, lineStyle = LWC.LineStyle.Dashed) =>
+    priceLines.push(candleSeries.createPriceLine({
+      price, color, lineWidth, lineStyle, axisLabelVisible: true, title,
+    }));
   data.levels.support.forEach(p => mkLine(p, css('--support'), 'S'));
   data.levels.resistance.forEach(p => mkLine(p, css('--resist'), 'R'));
   const pos = data.position;
   if (pos && pos.qty) mkLine(pos.avg_cost, css('--sma20'), 'AVG COST');
   if (data.plan) mkLine(data.plan.full_profit, up, 'TAKE PROFIT');
+
+  // Entry-read trigger: shade the stop→trigger band and mark both prices,
+  // so "setup on a trigger" points at a visible spot on the chart.
+  const entry = data.entry;
+  const zone = entry && entry.stance === 'setup'
+    && entry.entry_if_triggered != null && entry.stop_if_triggered != null
+    && entry.entry_if_triggered > entry.stop_if_triggered;
+  if (zone) {
+    entryZone.applyOptions({
+      baseValue: { type: 'price', price: entry.stop_if_triggered },
+      topFillColor1: up + '2e', topFillColor2: up + '2e',
+    });
+    entryZone.setData(data.bars.map(b => ({ time: b.time, value: entry.entry_if_triggered })));
+    mkLine(entry.entry_if_triggered, up, 'ENTRY ≥', 2, LWC.LineStyle.Solid);
+    mkLine(entry.stop_if_triggered, down, 'STOP');
+  } else {
+    entryZone.setData([]);
+  }
+  $('chipEntry').hidden = !zone;
 
   // B/S arrows; snap fill dates to the first bar on/after them (weekend fills).
   const lastTime = data.bars[data.bars.length - 1].time;
@@ -456,6 +488,7 @@ function renderPlan(data) {
   if (!plan) {
     verdictCard(el, `Entry read · ${data.symbol}`, data.snapshot.date,
       entry.stance, entry.headline, entry.why, [
+        ['Entry trigger', entry.entry_if_triggered],
         ['Stop if triggered', entry.stop_if_triggered],
         ['Pullback zone', entry.pullback_zone],
         ['Breakout above', entry.breakout_above],

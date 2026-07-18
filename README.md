@@ -9,14 +9,11 @@ no orders, no options. It just makes you a better-informed swing trader.
 ## Setup
 
 Already done on this machine (venv lives in `.venv/`). The only thing the
-deep-research command needs is an Anthropic API key:
+deep-research command needs is the [Claude Code CLI](https://claude.com/claude-code)
+on PATH and signed in (`claude login`) — research runs headless through
+`claude -p` and bills your Claude subscription. No API key.
 
-1. Create a key at <https://console.anthropic.com/settings/keys>
-2. Put it in a `.env` file next to `./scout`:
-
-       ANTHROPIC_API_KEY=sk-ant-...
-
-`scan` works without any key.
+`scan` works with nothing but the venv.
 
 ## Usage
 
@@ -115,10 +112,12 @@ its trim zone rather than depositing to chase.
 
 ## Costs
 
-`scan` is free. `research` uses Claude Opus with web search — typically
-roughly $0.10–$0.30 per symbol per run (varies with news volume). Each
-report footer shows actual token usage. A 5-symbol watchlist researched
-twice a week lands around $5–15/month.
+`scan` is free. `research` runs Claude Opus with web search through the
+Claude Code CLI, so it draws on your Claude subscription's usage limits
+rather than costing per-token dollars. Each report footer still shows token
+counts as a rough size gauge. A few symbols per run is well within a
+Pro/Max plan's headroom; a huge watchlist researched daily may bump into
+plan limits — trim the list or spread runs out if it does.
 
 ## Suggested rhythm
 

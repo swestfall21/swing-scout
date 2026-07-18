@@ -21,10 +21,29 @@ from . import watchlist as wl
 
 WEB_DIR = Path(__file__).parent / "web"
 
+# The server only listens on 127.0.0.1, but the *browser* will happily reach
+# it on behalf of any website (DNS rebinding for reads, cross-site form POSTs
+# for writes). Requests must be addressed to us and, when a browser says where
+# they came from, they must come from our own page.
+ALLOWED_HOSTS = ("localhost", "127.0.0.1")
+MAX_BODY_BYTES = 1_000_000  # API bodies are tiny JSON; anything big is abuse
+
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):  # quiet default logging
         pass
+
+    def _cross_site_blocked(self) -> bool:
+        host = (self.headers.get("Host") or "").rsplit(":", 1)[0]
+        if host not in ALLOWED_HOSTS:
+            self._json({"error": "forbidden host"}, 403)
+            return True
+        origin = self.headers.get("Origin")
+        if origin and self.command == "POST":
+            if urllib.parse.urlparse(origin).hostname not in ALLOWED_HOSTS:
+                self._json({"error": "forbidden origin"}, 403)
+                return True
+        return False
 
     def _send(self, status: int, body: bytes, content_type: str) -> None:
         self.send_response(status)
@@ -38,6 +57,8 @@ class Handler(BaseHTTPRequestHandler):
         self._send(status, json.dumps(obj).encode(), "application/json")
 
     def do_GET(self):
+        if self._cross_site_blocked():
+            return
         path = self.path.split("?")[0]
         if path == "/":
             self._send(200, (WEB_DIR / "index.html").read_bytes(), "text/html; charset=utf-8")
@@ -56,8 +77,17 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": "not found"}, 404)
 
     def do_POST(self):
+        if self._cross_site_blocked():
+            return
         path = self.path.split("?")[0]
-        length = int(self.headers.get("Content-Length", 0))
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            self._json({"error": "bad Content-Length"}, 400)
+            return
+        if not 0 <= length <= MAX_BODY_BYTES:
+            self._json({"error": "body too large"}, 413)
+            return
         try:
             body = json.loads(self.rfile.read(length) or b"{}")
         except json.JSONDecodeError as e:

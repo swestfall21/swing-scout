@@ -191,7 +191,7 @@ def cmd_research(args) -> int:
         print("Watchlist is empty. Add symbols with:  ./scout add AAPL MSFT")
         return 1
     try:
-        analyst.require_api_key()
+        analyst.require_claude_cli()
     except analyst.ConfigError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

@@ -1,17 +1,21 @@
 """Claude analyst — per-symbol swing-trade research grounded in real data.
 
-Each symbol gets one deep-research call: the deterministic indicator
-snapshot and recent price action are provided as ground truth, and Claude
-uses web search for news, catalysts, and upcoming earnings. The response is
-a markdown research note ending in a machine-readable JSON verdict.
+Each symbol gets one deep-research call through the Claude Code CLI
+(`claude -p`, headless mode), which bills the user's Claude subscription —
+no API key needed. The deterministic indicator snapshot and recent price
+action are provided as ground truth, and Claude uses web search for news,
+catalysts, and upcoming earnings. The response is a markdown research note
+ending in a machine-readable JSON verdict.
 """
 
 import json
-import os
 import re
+import shutil
+import subprocess
 import sys
 
-MODEL = "claude-opus-4-8"
+MODEL = "opus"
+TIMEOUT_S = 900  # per-symbol ceiling; opus + web search runs a few minutes
 
 SYSTEM_PROMPT = """\
 You are an experienced swing-trade analyst producing research notes for a \
@@ -57,13 +61,41 @@ class ConfigError(Exception):
     pass
 
 
-def require_api_key() -> None:
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+class ResearchError(Exception):
+    pass
+
+
+def require_claude_cli() -> None:
+    if not shutil.which("claude"):
         raise ConfigError(
-            "ANTHROPIC_API_KEY is not set. Create a key at "
-            "https://console.anthropic.com/settings/keys and either export it "
-            "or put ANTHROPIC_API_KEY=sk-ant-... in a .env file next to ./scout"
+            "the `claude` CLI is not on PATH. Research runs through Claude Code "
+            "(billed to your Claude subscription, no API key): install it from "
+            "https://claude.com/claude-code and sign in once with `claude login`."
         )
+
+
+def _run_claude(prompt: str) -> tuple[str, dict]:
+    """One headless research run; returns (note_text, {input, output} tokens)."""
+    cmd = [
+        "claude", "-p", prompt,
+        "--system-prompt", SYSTEM_PROMPT,
+        "--exclude-dynamic-system-prompt-sections",
+        "--model", MODEL,
+        "--allowedTools", "WebSearch", "WebFetch",
+        "--output-format", "json",
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT_S)
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+        raise ResearchError(detail[-1] if detail else f"claude exited {proc.returncode}")
+    out = json.loads(proc.stdout)
+    if out.get("is_error"):
+        raise ResearchError(out.get("result") or out.get("subtype") or "unknown error")
+    usage = out.get("usage") or {}
+    return out.get("result") or "", {
+        "input": usage.get("input_tokens", 0),
+        "output": usage.get("output_tokens", 0),
+    }
 
 
 def _build_user_message(snap: dict, bars: list[dict], pos: dict | None = None) -> str:
@@ -108,12 +140,9 @@ def _extract_verdict(text: str) -> dict | None:
 
 
 def research_symbols(symbols: list[str]) -> list[dict]:
-    import anthropic
-
     from . import data, indicators
     from . import trades as trades_mod
 
-    client = anthropic.Anthropic()
     trade_log = trades_mod.load()
     results = []
     for sym in symbols:
@@ -129,33 +158,20 @@ def research_symbols(symbols: list[str]) -> list[dict]:
                                  bars[-1]["close"], bars[-1]["date"])
                if tlog else None)
         try:
-            with client.messages.stream(
-                model=MODEL,
-                max_tokens=16000,
-                thinking={"type": "adaptive"},
-                system=SYSTEM_PROMPT,
-                tools=[{
-                    "type": "web_search_20260209",
-                    "name": "web_search",
-                    "max_uses": 6,
-                }],
-                messages=[{"role": "user", "content": _build_user_message(snap, bars, pos)}],
-            ) as stream:
-                message = stream.get_final_message()
-        except anthropic.APIError as e:
-            print(f"  ! {sym}: API error — {e}", file=sys.stderr)
+            text, usage = _run_claude(_build_user_message(snap, bars, pos))
+        except (ResearchError, subprocess.TimeoutExpired,
+                json.JSONDecodeError, OSError) as e:
+            print(f"  ! {sym}: research failed — {e}", file=sys.stderr)
             continue
 
-        text = "\n".join(b.text for b in message.content if b.type == "text")
         verdict = _extract_verdict(text)
         if verdict is None:
             print(f"  ! {sym}: no parseable verdict block; keeping prose only", file=sys.stderr)
-        usage = message.usage
         results.append({
             "symbol": sym,
             "snapshot": snap,
             "note": text,
             "verdict": verdict,
-            "usage": {"input": usage.input_tokens, "output": usage.output_tokens},
+            "usage": usage,
         })
     return results
