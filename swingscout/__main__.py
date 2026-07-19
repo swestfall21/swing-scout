@@ -200,6 +200,7 @@ def cmd_research(args) -> int:
         print("No research produced.", file=sys.stderr)
         return 1
     path = report.write_report(results)
+    report.save_verdicts(results, path)
     print()
     print(report.digest_text(results))
     print(f"\nFull report: {path}")

@@ -76,6 +76,8 @@
   #symbols li .rm:hover { color: var(--down); }
   #symbols li .star { display: none; color: var(--sma20); font-size: 11px; margin-left: 6px; }
   #symbols li.held .star { display: inline; }
+  #symbols li .flag { display: none; color: var(--up); font-size: 10px; margin-left: 6px; }
+  #symbols li.actionable .flag { display: inline; }
   /* ---- main ---- */
   main { display: flex; flex-direction: column; padding: 16px 20px; min-width: 0; }
   #symView, #pfView {
@@ -113,17 +115,18 @@
   #tradeForm button { cursor: pointer; }
   #tMsg { font-size: 12px; }
   #tMsg.err { color: var(--down); } #tMsg.ok { color: var(--up); }
-  #setups, #plan {
+  #setups, #plan, #analyst {
     background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
     padding: 10px 14px; display: flex; flex-direction: column; gap: 8px;
   }
-  #setups .hd, #plan .hd { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-  #setups .hd .t, #plan .hd .t {
+  #setups .hd, #plan .hd, #analyst .hd { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  #setups .hd .t, #plan .hd .t, #analyst .hd .t {
     font-size: 11px; font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.05em; color: var(--ink-2);
   }
-  #setups .hd .sub, #plan .hd .sub { color: var(--muted); font-size: 11px; }
+  #setups .hd .sub, #plan .hd .sub, #analyst .hd .sub { color: var(--muted); font-size: 11px; }
   #plan.held { border-color: color-mix(in srgb, var(--sma20) 45%, transparent); }
+  #analyst.actionable { border-color: color-mix(in srgb, var(--up) 55%, transparent); }
   .lvls { display: flex; gap: 6px; flex-wrap: wrap; }
   .pl {
     border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px;
@@ -239,6 +242,7 @@
     <span id="tMsg"></span>
   </form>
   <div id="plan" hidden></div>
+  <div id="analyst" hidden></div>
   <div id="setups" hidden></div>
   <div id="chartCard">
     <div id="chartBar">
@@ -453,6 +457,7 @@ function render(data) {
     `<div class="v ${cls || ''}">${v ?? '–'}</div></div>`).join('');
 
   renderPlan(data);
+  renderAnalyst(data);
   renderSetups(data);
   if (data.account) paintAccount(data.account);
   $('tradeForm').hidden = false;
@@ -517,6 +522,47 @@ function renderPlan(data) {
     plan.stance, plan.headline, plan.why, chips, plan.notes);
 }
 
+const RESEARCH_LABEL = {
+  long_setup: 'LONG SETUP', short_setup: 'SHORT SETUP', watch: 'WATCH', avoid: 'AVOID',
+};
+const STALE_AFTER_DAYS = 7;
+
+function renderAnalyst(data) {
+  const el = $('analyst'), r = data.research;
+  if (!r) { el.hidden = true; return; }
+  el.classList.toggle('actionable', !!r.actionable);
+  const cls = r.actionable ? 'long'
+    : (r.stance === 'avoid' || r.stance === 'short_setup') ? 'caution' : 'neutral';
+  const ageDays = Math.round((Date.now() - new Date(r.date + 'T00:00:00')) / 86400000);
+  const stale = ageDays > STALE_AFTER_DAYS;
+  const verdict = r.actionable
+    ? `Clears your ≥${r.threshold}/5 conviction bar — tradeable if the trigger confirms.`
+    : (r.stance === 'long_setup' || r.stance === 'short_setup')
+      ? `Below your ≥${r.threshold}/5 conviction bar — watch, don't chase.`
+    : r.stance === 'avoid' ? 'Stand aside — the analyst\'s conviction is in the no-trade.'
+    : 'No setup yet — wait for the trigger in the note.';
+  const chips = [
+    ['Conviction', `${r.conviction ?? '?'} / 5`],
+    ['Entry zone', r.entry_zone ? r.entry_zone.join(' – ') : null],
+    ['Stop', r.stop],
+    ['Targets', r.targets && r.targets.length ? r.targets.join(' / ') : null],
+    ['Horizon', r.horizon_days ? `~${r.horizon_days}d` : null],
+    ['⚠ Earnings', (r.earnings_risk && r.earnings_risk !== 'none_in_horizon'
+      && r.earnings_risk !== 'unknown') ? r.earnings_risk : null],
+  ];
+  el.innerHTML =
+    `<div class="hd"><span class="t">Analyst verdict · ${data.symbol}</span>` +
+    `<span class="sub">from <code>scout research</code> on ${r.date}` +
+    `${stale ? ' — <b>stale</b>; re-run research before acting' : ''}</span></div>` +
+    `<div class="setup"><span class="badge ${cls}">${RESEARCH_LABEL[r.stance] ?? r.stance}</span>` +
+    `<div class="body"><div><b>${verdict}</b></div>` +
+    `<div class="sub">${r.summary ?? ''}</div></div></div>` +
+    `<div class="lvls">` + chips.filter(([, v]) => v != null).map(([k, v]) =>
+      `<span class="pl"><span class="k">${k}</span> <span class="v">${v}</span></span>`).join('') +
+    `</div>`;
+  el.hidden = false;
+}
+
 function renderSetups(data) {
   const el = $('setups');
   const head =
@@ -545,10 +591,19 @@ const fmt$ = (v) => '$' + v.toLocaleString(undefined,
   { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 let heldSet = new Set();
+let actionableSet = new Set();
 
 function decorateHeld() {
-  document.querySelectorAll('#symbols li').forEach(li =>
-    li.classList.toggle('held', heldSet.has(li.dataset.sym)));
+  document.querySelectorAll('#symbols li').forEach(li => {
+    li.classList.toggle('held', heldSet.has(li.dataset.sym));
+    li.classList.toggle('actionable', actionableSet.has(li.dataset.sym));
+  });
+}
+
+async function refreshResearchFlags() {
+  const r = await (await fetch('/api/research')).json();
+  actionableSet = new Set(Object.keys(r.symbols).filter(s => r.symbols[s].actionable));
+  decorateHeld();
 }
 
 function paintAccount(a) {
@@ -755,7 +810,8 @@ function paintList(symbols) {
   for (const sym of symbols) {
     const li = document.createElement('li');
     li.dataset.sym = sym;
-    li.innerHTML = `<span>${sym}<span class="star" title="open position">★</span></span>` +
+    li.innerHTML = `<span>${sym}<span class="star" title="open position">★</span>` +
+                   `<span class="flag" title="analyst setup clears your conviction bar">◆</span></span>` +
                    `<span class="rm" title="remove">✕</span>`;
     li.querySelector('.rm').onclick = (e) => { e.stopPropagation(); mutate('remove', sym); };
     li.onclick = () => loadSymbol(sym);
@@ -831,6 +887,7 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
 
 (async function init() {
   refreshAccount();
+  refreshResearchFlags();
   const symbols = await (await fetch('/api/watchlist')).json();
   paintList(symbols);
   if (location.hash === '#portfolio') { showPortfolio(); return; }

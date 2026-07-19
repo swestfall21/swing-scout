@@ -1,0 +1,14 @@
+{
+  "VRT": {
+    "stance": "long_setup",
+    "conviction": 4,
+    "entry_zone": [287, 292],
+    "stop": 271,
+    "targets": [305, 312],
+    "horizon_days": 7,
+    "earnings_risk": "2026-07-29",
+    "summary": "One-sentence analyst summary of the setup.",
+    "date": "2026-07-18",
+    "report": "2026-07-18_2052.md"
+  }
+}

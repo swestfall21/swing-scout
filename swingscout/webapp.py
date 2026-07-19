@@ -6,6 +6,7 @@ GET  /api/watchlist         ["NVDA", ...]
 POST /api/watchlist         {"action": "add"|"remove", "symbol": "..."}
 POST /api/trades            {"symbol", "side", "qty", "price", "date"?, "note"?}
 GET  /api/chart/<SYMBOL>    {bars, snapshot, levels, sma, setups, position, trades, ...}
+GET  /api/research          {threshold, symbols: {SYM: {stance, conviction, ...}}}
 GET  /api/account           {cash, positions_value, account_value}
 GET  /api/performance?range=1m|3m|6m|ytd|1y|all   equity curve + holdings returns
 POST /api/cash              {"amount": +deposit/-withdrawal, "date"?, "note"?}
@@ -16,7 +17,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import data, indicators, performance, trades
+from . import conviction_threshold, data, indicators, performance, report, trades
 from . import watchlist as wl
 
 WEB_DIR = Path(__file__).parent / "web"
@@ -67,6 +68,8 @@ class Handler(BaseHTTPRequestHandler):
                        "application/javascript")
         elif path == "/api/watchlist":
             self._json(wl.load())
+        elif path == "/api/research":
+            self._json(_research_summary())
         elif path == "/api/account":
             self._json(_account_summary())
         elif path == "/api/performance":
@@ -198,8 +201,29 @@ class Handler(BaseHTTPRequestHandler):
             "trades": tlog,
             "plan": plan,
             "entry": entry,
+            "research": _research_verdict(symbol),
             "account": _account_summary(),
         })
+
+
+def _research_verdict(symbol: str) -> dict | None:
+    """Latest saved analyst verdict for one symbol, threshold-annotated."""
+    v = report.load_verdicts().get(symbol)
+    if not v:
+        return None
+    threshold = conviction_threshold()
+    return {**v, "threshold": threshold,
+            "actionable": report.is_actionable(v, threshold)}
+
+
+def _research_summary() -> dict:
+    """All saved verdicts, trimmed for the sidebar (actionable markers)."""
+    threshold = conviction_threshold()
+    return {"threshold": threshold, "symbols": {
+        sym: {"stance": v.get("stance"), "conviction": v.get("conviction"),
+              "date": v.get("date"),
+              "actionable": report.is_actionable(v, threshold)}
+        for sym, v in report.load_verdicts().items()}}
 
 
 def _held_positions() -> list[dict]:

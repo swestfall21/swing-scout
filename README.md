@@ -99,6 +99,24 @@ how many shares cash covers, and when cash can't cover a single share
 the card suggests the capital-recycling move: trim your best winner into
 its trim zone rather than depositing to chase.
 
+## Conviction bar
+
+Analyst conviction (1–5) is confidence *in the stated stance* — an AVOID
+4/5 is a strong stay-away, not four-fifths of a buy. Only long/short
+setups compete against the bar: the digest leads with **Actionable
+(conviction ≥ 4)** and pushes everything else under **"Below the bar —
+watch, don't chase"**. Set `SCOUT_CONVICTION_MIN` in `.env` to move the
+bar (4 = full-size trades only, 3 admits half-size ideas).
+
+Each research run also merges its structured verdicts into
+`data/research.json` (gitignored; `data/research.example.json` shows the
+format), which feeds the dashboard: researched symbols get an **Analyst
+verdict** card (stance badge, conviction, entry/stop/targets/horizon,
+earnings ⚠, flagged stale after 7 days) that sits between the chart-math
+cards — so when the rule-based entry read says SETUP but the news-aware
+analyst says WATCH, you see the disagreement. Symbols whose latest
+verdict clears the bar get a green ◆ in the sidebar.
+
 ## What the analyst gets and does
 
 - **Ground truth from real data** (Yahoo Finance daily bars, cached per

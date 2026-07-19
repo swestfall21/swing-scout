@@ -103,3 +103,14 @@ good after months of use, a paper-trading execution arm can be a v2.
       realized), rows deep-link to the symbol page ✓ 2026-07-05, TWR
       cross-checked by hand against AMZN closes, empty/bad-range/missing-
       data paths handled, headless screenshots light + dark + % mode
+
+- [x] 17. Conviction bar — verdicts persist to data/research.json (merged
+      per symbol each research run; gitignored, example file shipped);
+      digest splits "Actionable (conviction ≥ N)" from "Below the bar —
+      watch, don't chase" (default 4, SCOUT_CONVICTION_MIN overrides);
+      dashboard "Analyst verdict" card per researched symbol (stance
+      badge, conviction + level chips, stale flag after 7 days, green
+      border when actionable) + green ◆ sidebar marker; GET /api/research
+      ✓ 2026-07-18, verified via curl at thresholds 4 and 2 + headless
+      screenshots light + dark (CEG below-bar vs actionable, NEM avoid,
+      RTX analyst-watch vs rule-based-setup disagreement)
