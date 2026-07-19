@@ -376,6 +376,10 @@ function applyRange() {
 function render(data) {
   lastData = data;
   ensureChart();
+  // Dragging the price axis flips the scale to manual, and that sticks to the
+  // chart, not the symbol — reset it so the next render autoscales to its own
+  // bars instead of rendering them off-screen at the old symbol's range.
+  chart.priceScale('right').applyOptions({ autoScale: true });
   const up = css('--up'), down = css('--down');
   candleSeries.setData(data.bars.map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })));
   volSeries.setData(data.bars.map(b => ({
